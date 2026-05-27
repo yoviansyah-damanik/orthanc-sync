@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% block title %}Profile | {{ app_name }}{% endblock %}
+{% block page_title %}Account Settings{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <!-- Header Hero Section -->
+    <div class="relative overflow-hidden rounded-[2.5rem] bg-gray-900 p-8 md:p-12 shadow-2xl shadow-blue-900/20">
+        <div class="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-blue-600 rounded-full blur-[120px] opacity-20"></div>
+        <div class="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-indigo-600 rounded-full blur-[100px] opacity-20"></div>
+        
+        <div class="relative flex flex-col md:flex-row items-center gap-8">
+            <!-- Profile Avatar with Ring -->
+            <div class="relative group">
+                <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-[2rem] blur opacity-30 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
+                <div class="relative w-32 h-32 bg-gray-800 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-blue-500/10 overflow-hidden">
+                    <span class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-blue-400 uppercase">
+                        {{ user.username|slice:":2" }}
+                    </span>
+                    <div class="absolute bottom-0 inset-x-0 h-1/3 bg-gradient-to-t from-blue-600/20 to-transparent"></div>
+                </div>
+                <div class="absolute -bottom-2 -right-2 w-10 h-10 bg-green-500 rounded-2xl flex items-center justify-center shadow-xl shadow-green-500/20">
+                    <div class="w-2.5 h-2.5 bg-white rounded-full animate-pulse"></div>
+                </div>
+            </div>
+
+            <div class="flex-1 text-center md:text-left">
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-2">
+                    <h2 class="text-3xl md:text-4xl font-black text-white tracking-tight">
+                        {% if user.get_full_name %}{{ user.get_full_name }}{% else %}{{ user.username }}{% endif %}
+                    </h2>
+                    <span class="px-4 py-1.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-black uppercase tracking-[0.3em]">
+                        {{ user.is_superuser|yesno:"Superuser,Operator" }}
+                    </span>
+                </div>
+                <p class="text-gray-400 font-medium text-sm flex items-center justify-center md:justify-start gap-2">
+                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    {{ user.email }}
+                </p>
+                <div class="mt-6 flex flex-wrap justify-center md:justify-start gap-4">
+                    <div class="flex items-center gap-2 px-5 py-2.5 bg-white/5 rounded-2xl backdrop-blur-md">
+                        <span class="text-[10px] font-black text-blue-400 uppercase tracking-widest">ID</span>
+                        <span class="text-xs font-mono text-gray-400">{{ user.id|truncatechars:18 }}</span>
+                    </div>
+                    <div class="flex items-center gap-2 px-5 py-2.5 bg-white/5 rounded-2xl backdrop-blur-md">
+                        <span class="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Joined</span>
+                        <span class="text-xs font-bold text-gray-400">{{ user.date_joined|date:"d M Y" }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hidden lg:block w-[1px] h-24 bg-white/10"></div>
+
+            <!-- Mini Stats -->
+            <div class="hidden lg:grid grid-cols-1 gap-4 min-w-[200px]">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Account Status</span>
+                    <span class="text-xs font-black text-green-400 uppercase tracking-widest">Verified</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Access Level</span>
+                    <span class="text-xs font-black text-blue-400 uppercase tracking-widest">Tier 1</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <!-- Main Form Section -->
+        <div class="lg:col-span-2 space-y-8">
+            <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
+                <div class="px-10 py-8">
+                    <h3 class="text-xl font-black text-slate-900 tracking-tight">Personal Information</h3>
+                    <p class="text-sm text-slate-400 font-medium">Update your identity and account credentials</p>
+                </div>
+
+                <form method="POST" class="p-10 space-y-8">
+                    {% csrf_token %}
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="space-y-3">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">First Name</label>
+                            <input type="text" name="first_name" value="{{ user.first_name }}" placeholder="Your first name"
+                                   class="w-full px-6 py-4 bg-slate-50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm font-bold text-slate-900 placeholder-slate-300 transition-all shadow-sm">
+                        </div>
+                        <div class="space-y-3">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Last Name</label>
+                            <input type="text" name="last_name" value="{{ user.last_name }}" placeholder="Your last name"
+                                   class="w-full px-6 py-4 bg-slate-50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm font-bold text-slate-900 placeholder-slate-300 transition-all shadow-sm">
+                        </div>
+                        <div class="space-y-3">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Username</label>
+                            <input type="text" name="username" value="{{ user.username }}" required
+                                   class="w-full px-6 py-4 bg-slate-50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm font-bold text-slate-900 transition-all shadow-sm">
+                        </div>
+                        <div class="space-y-3">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Address</label>
+                            <input type="email" name="email" value="{{ user.email }}" required
+                                   class="w-full px-6 py-4 bg-slate-50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm font-bold text-slate-900 transition-all shadow-sm">
+                        </div>
+                    </div>
+
+                    <!-- Security Divider -->
+                    <div class="relative py-6">
+                        <div class="absolute inset-0 flex items-center"><div class="w-full h-[1px] bg-slate-100"></div></div>
+                        <div class="relative flex justify-center"><span class="px-8 bg-white text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Security Threshold</span></div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="space-y-3">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">New Password</label>
+                            <input type="password" name="new_password" autocomplete="new-password" placeholder="••••••••"
+                                   class="w-full px-6 py-4 bg-slate-50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm font-bold text-slate-900 placeholder-slate-300 transition-all shadow-sm">
+                        </div>
+                        <div class="space-y-3">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Confirm Changes</label>
+                            <input type="password" name="confirm_password" placeholder="••••••••"
+                                   class="w-full px-6 py-4 bg-slate-50 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm font-bold text-slate-900 placeholder-slate-300 transition-all shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="pt-8 flex items-center justify-between gap-4">
+                        <p class="text-[10px] text-slate-400 font-bold italic leading-relaxed max-w-xs">Leaving password fields empty will keep your current credentials.</p>
+                        <button type="submit" class="px-10 py-5 bg-blue-600 text-white text-xs font-black rounded-3xl shadow-2xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-1 active:translate-y-0 transition-all duration-300 uppercase tracking-widest">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Activity & Meta Sidebar -->
+        <div class="space-y-10">
+            <!-- Activity Summary -->
+            <div class="bg-white rounded-[2.5rem] card-shadow p-10 space-y-8">
+                <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Account Integrity</h4>
+                
+                <div class="space-y-6">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A9 9 0 112.121 19.35c.421.312.813.642 1.171 1.012l.142.148M12 7V3m0 0l-3 3m3-3l3 3"></path></svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-black text-gray-900">Active Session</p>
+                            <p class="text-xs text-gray-500 font-medium">{{ user.last_login|timesince }} ago</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

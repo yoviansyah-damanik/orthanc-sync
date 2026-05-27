@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Setup | Orthanc Bridge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .glass { background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(25px); }
+        .input-field { background: rgba(255, 255, 255, 0.06); border-radius: 1.25rem; padding: 0.85rem 1.25rem; color: white; font-size: 0.875rem; transition: all 0.3s; border: none; }
+        .input-field:focus { outline: none; background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); }
+        .btn-primary { background: white; color: #0f172a; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn-primary:hover { background: #f8fafc; transform: translateY(-2px); box-shadow: 0 20px 40px -10px rgba(255, 255, 255, 0.1); }
+        .btn-primary:disabled { opacity: 0.2; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: rgba(255, 255, 255, 0.05); color: white; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.3s; border: none; }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.08); transform: translateY(-1px); }
+        
+        /* Toast Styles */
+        #toast-container { position: fixed; top: 2rem; right: 2rem; z-index: 100; display: flex; flex-direction: column; gap: 0.75rem; pointer-events: none; }
+        .toast { pointer-events: auto; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(15px); padding: 1rem 1.5rem; border-radius: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); display: flex; items-center; gap: 0.75rem; min-width: 320px; transform: translateX(120%); transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .toast.show { transform: translateX(0); }
+        .toast-icon { width: 2.5rem; height: 2.5rem; border-radius: 0.75rem; flex-shrink: 0; display: flex; items-center; justify-center; }
+        .toast-success .toast-icon { background: rgba(34, 197, 94, 0.2); color: #22c55e; box-shadow: 0 0 20px rgba(34, 197, 94, 0.1); }
+        .toast-error .toast-icon { background: rgba(239, 68, 68, 0.2); color: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.1); }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-6">
+    <div id="toast-container"></div>
+    <div class="absolute inset-0 overflow-hidden pointer-events-none">
+        <div class="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-blue-600 rounded-full blur-[150px] opacity-20"></div>
+        <div class="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-indigo-600 rounded-full blur-[150px] opacity-20"></div>
+    </div>
+
+    <div class="max-w-2xl w-full glass rounded-[3.5rem] p-10 md:p-16 relative z-10 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in duration-700">
+        <div class="flex items-center gap-6 mb-10">
+            <div class="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/40">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+            </div>
+            <div>
+                <h1 class="text-3xl font-black text-white tracking-tight">Database Configuration</h1>
+                <p class="text-gray-400 font-medium text-sm">Sistem membutuhkan koneksi MariaDB/MySQL aktif.</p>
+            </div>
+        </div>
+
+        <!-- System Scan -->
+        <div id="servicesArea" class="mb-10 p-6 bg-white/5 rounded-[2rem] hidden animate-in slide-in-from-top-4">
+            <p class="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-4">Detected Local Services</p>
+            <div id="servicesList" class="flex flex-wrap gap-3"></div>
+            <p class="mt-4 text-[10px] text-gray-500 italic">* Klik layanan untuk mengisi konfigurasi secara otomatis.</p>
+        </div>
+
+        <!-- Config Form -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Host</label>
+                <input type="text" id="dbHost" value="127.0.0.1" class="w-full input-field" placeholder="127.0.0.1">
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Port</label>
+                <input type="number" id="dbPort" value="3306" class="w-full input-field" placeholder="3306">
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Username</label>
+                <input type="text" id="dbUser" value="root" class="w-full input-field" placeholder="root">
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Password</label>
+                <input type="password" id="dbPass" class="w-full input-field" placeholder="••••••••">
+            </div>
+            <div id="dbNameContainer" class="space-y-2 md:col-span-2 hidden">
+                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Database Name</label>
+                <input type="text" id="dbName" value="orthanc-sync" class="w-full input-field" placeholder="orthanc-sync">
+            </div>
+        </div>
+
+        <!-- Status Area -->
+        <div id="statusArea" class="hidden mb-10 p-8 rounded-[2rem] text-left animate-in slide-in-from-bottom-4 shadow-2xl">
+            <div class="flex items-center gap-3 mb-1">
+                <div id="statusDot" class="w-2 h-2 rounded-full"></div>
+                <span id="statusText" class="text-[10px] font-black uppercase tracking-widest"></span>
+            </div>
+            <p id="statusDetail" class="text-xs font-medium"></p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button id="testBtn" onclick="testConnection()" class="py-4 btn-secondary rounded-2xl text-xs">
+                Tes Koneksi
+            </button>
+            <button id="setupBtn" onclick="startSetup()" disabled class="md:col-span-2 py-4 btn-primary rounded-2xl text-xs">
+                Simpan & Jalankan Konfigurasi
+            </button>
+        </div>
+
+        <div class="mt-10 flex items-center justify-center gap-2">
+            <div class="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Database Initialization Wizard</span>
+        </div>
+    </div>
+
+    <script>
+        let isConnected = false;
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const icons = {
+                success: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+                error: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+            };
+
+            const titles = { success: 'Berhasil', error: 'Kesalahan' };
+
+            toast.className = `toast toast-${type} flex items-center gap-4`;
+            toast.innerHTML = `
+                <div class="toast-icon flex items-center justify-center text-white">${icons[type] || ''}</div>
+                <div class="flex flex-col">
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">${titles[type] || 'Notifikasi'}</span>
+                    <span class="text-xs font-semibold text-white/90 leading-tight">${message}</span>
+                </div>
+            `;
+            container.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 500);
+            }, 4000);
+        }
+
+        window.onload = async () => {
+            try {
+                const response = await fetch('/api/check-db');
+                const data = await response.json();
+                
+                // Render services
+                if (data.available_services && data.available_services.length > 0) {
+                    const servicesArea = document.getElementById('servicesArea');
+                    const servicesList = document.getElementById('servicesList');
+                    servicesArea.classList.remove('hidden');
+                    
+                    servicesList.innerHTML = data.available_services.map(s => `
+                        <button onclick="selectService('${s.port}')" class="px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center gap-2 hover:bg-blue-500/20 transition-all">
+                            <div class="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                            <span class="text-[10px] font-black text-blue-300 uppercase">${s.name} : ${s.port}</span>
+                        </button>
+                    `).join('');
+                }
+
+                // Auto-fill from current data if it's not sqlite
+                if (data.engine === 'mysql') {
+                    document.getElementById('dbHost').value = data.host || '127.0.0.1';
+                    document.getElementById('dbPort').value = data.port || '3306';
+                }
+            } catch (e) {
+                console.error("Diagnostic failed", e);
+            }
+        };
+
+        function selectService(port) {
+            document.getElementById('dbPort').value = port;
+            resetStatus();
+        }
+
+        function resetStatus() {
+            isConnected = false;
+            document.getElementById('setupBtn').disabled = true;
+            document.getElementById('statusArea').classList.add('hidden');
+        }
+
+        async function testConnection() {
+            const btn = document.getElementById('testBtn');
+            const statusArea = document.getElementById('statusArea');
+            const statusText = document.getElementById('statusText');
+            const statusDetail = document.getElementById('statusDetail');
+            const statusDot = document.getElementById('statusDot');
+
+            const config = {
+                host: document.getElementById('dbHost').value,
+                port: document.getElementById('dbPort').value,
+                user: document.getElementById('dbUser').value,
+                password: document.getElementById('dbPass').value,
+                db_name: document.getElementById('dbName').value
+            };
+
+            btn.disabled = true;
+            btn.innerText = "Mengecek...";
+            statusArea.classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/test-db', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const res = await response.json();
+
+                statusArea.classList.remove('hidden');
+                if (res.success) {
+                    isConnected = true;
+                    statusArea.className = "mb-10 p-8 rounded-[2rem] bg-green-500/10 text-left shadow-lg shadow-green-500/5";
+                    statusText.innerText = "Berhasil";
+                    statusText.className = "text-[10px] font-black uppercase tracking-widest text-green-400";
+                    statusDot.className = "w-2 h-2 rounded-full bg-green-500";
+                    statusDetail.innerText = res.message;
+                    statusDetail.className = "text-xs font-medium text-green-300/70";
+                    document.getElementById('setupBtn').disabled = false;
+                    document.getElementById('dbNameContainer').classList.remove('hidden');
+                    showToast(res.message, 'success');
+                } else {
+                    isConnected = false;
+                    statusArea.className = "mb-10 p-8 rounded-[2rem] bg-red-500/10 text-left shadow-lg shadow-red-500/5";
+                    statusText.innerText = "Gagal";
+                    statusText.className = "text-[10px] font-black uppercase tracking-widest text-red-400";
+                    statusDot.className = "w-2 h-2 rounded-full bg-red-500";
+                    statusDetail.innerText = res.message;
+                    statusDetail.className = "text-xs font-medium text-red-300/70";
+                    showToast(res.message, 'error');
+                }
+            } catch (e) {
+                showToast("Kesalahan API: " + e, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Tes Koneksi";
+            }
+        }
+
+        async function startSetup() {
+            if (!isConnected) return;
+
+            const btn = document.getElementById('setupBtn');
+            const statusArea = document.getElementById('statusArea');
+            const statusText = document.getElementById('statusText');
+            const statusDetail = document.getElementById('statusDetail');
+            const statusDot = document.getElementById('statusDot');
+
+            const config = {
+                host: document.getElementById('dbHost').value,
+                port: document.getElementById('dbPort').value,
+                user: document.getElementById('dbUser').value,
+                password: document.getElementById('dbPass').value,
+                db_name: document.getElementById('dbName').value
+            };
+
+            btn.disabled = true;
+            statusArea.className = "mb-10 p-8 rounded-[2rem] bg-blue-500/10 text-left shadow-lg shadow-blue-500/5";
+            statusText.innerText = "Memproses...";
+            statusText.className = "text-[10px] font-black uppercase tracking-widest text-blue-400";
+            statusDot.className = "w-2 h-2 rounded-full bg-blue-500 animate-pulse";
+            statusDetail.innerText = "Memperbarui .env dan menjalankan migrasi database...";
+
+            try {
+                const response = await fetch('/api/setup-database', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const res = await response.json();
+
+                if (res.success) {
+                    statusDetail.innerText = res.message;
+                    showToast(res.message, 'success');
+                    setTimeout(() => { window.location.href = '/login/'; }, 2000);
+                } else {
+                    statusDetail.innerText = "Setup Gagal: " + res.message;
+                    showToast(res.message, 'error');
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                showToast("Kesalahan API: " + e, 'error');
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>500 Server Error | Orthanc Bridge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-slate-900 min-h-screen flex items-center justify-center p-6 text-white">
+    <div class="max-w-md w-full text-center">
+        <div class="mb-10 inline-flex items-center justify-center w-24 h-24 bg-red-500/10 rounded-[2rem] border border-red-500/20">
+            <svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+        </div>
+        
+        <div class="relative mb-8">
+            <h1 class="text-[120px] font-black text-white/5 leading-none select-none">500</h1>
+            <div class="absolute inset-0 flex items-center justify-center">
+                <h2 class="text-2xl font-bold text-white tracking-tight">System Crash</h2>
+            </div>
+        </div>
+
+        <p class="text-slate-400 mb-10 leading-relaxed font-medium">
+            Terjadi kesalahan fatal pada server. Tim teknis kami telah diberitahu. Silakan coba segarkan halaman dalam beberapa saat.
+        </p>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <button onclick="window.location.reload()" class="w-full sm:w-auto px-8 py-4 bg-white text-slate-900 font-bold rounded-2xl hover:bg-slate-100 transition-all">
+                Coba Segarkan
+            </button>
+            <a href="/" class="w-full sm:w-auto px-8 py-4 bg-slate-800 text-white font-bold rounded-2xl hover:bg-slate-700 transition-all">
+                Dashboard
+            </a>
+        </div>
+    </div>
+</body>
+</html>

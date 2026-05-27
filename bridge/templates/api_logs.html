@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+{% block title %}Audit Log | Orthanc Bridge{% endblock %}
+{% block page_title %}Technical Audit Logs{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-white rounded-[2rem] p-8 card-shadow transition-all hover:shadow-2xl hover:shadow-blue-500/5">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Logs</p>
+            <div class="flex items-end justify-between">
+                <h3 class="text-3xl font-black text-slate-900 leading-none">{{ logs.count }}</h3>
+                <div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-[2rem] p-8 card-shadow transition-all hover:shadow-2xl hover:shadow-green-500/5">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Success</p>
+            <div class="flex items-end justify-between">
+                <h3 class="text-3xl font-black text-green-600 leading-none">{{ logs.count }}</h3>
+                <div class="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-green-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-[2rem] p-8 card-shadow transition-all hover:shadow-2xl hover:shadow-amber-500/5">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Warning</p>
+            <div class="flex items-end justify-between">
+                <h3 class="text-3xl font-black text-amber-500 leading-none">0</h3>
+                <div class="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-[2rem] p-8 card-shadow transition-all hover:shadow-2xl hover:shadow-red-500/5">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Failure</p>
+            <div class="flex items-end justify-between">
+                <h3 class="text-3xl font-black text-red-600 leading-none">0</h3>
+                <div class="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center text-red-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Table Card -->
+    <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
+        <!-- Card Toolbar -->
+        <div class="px-10 py-8 flex flex-col md:row sm:flex-row sm:items-center justify-between gap-6">
+            <div>
+                <h2 class="text-lg font-bold text-gray-900 leading-none mb-1">System Events</h2>
+                <p class="text-xs text-gray-400">Technical request/response stream</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <input type="text" id="logSearch" placeholder="Search by Accession..." 
+                        class="pl-12 pr-6 py-3 bg-slate-50 rounded-2xl text-[11px] font-black uppercase tracking-wider focus:ring-4 focus:ring-blue-500/10 outline-none w-72 transition-all focus:bg-white shadow-sm">
+                    <svg class="w-4 h-4 absolute left-4 top-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <button onclick="window.location.reload()" class="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-blue-600 hover:bg-white hover:shadow-md transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse" id="logTable">
+                <thead>
+                <tr class="bg-slate-50/30">
+                    <th class="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Timestamp</th>
+                    <th class="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</th>
+                    <th class="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identity</th>
+                    <th class="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                    <th class="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                    {% for log in logs %}
+                    <tr class="hover:bg-blue-50/20 transition-all duration-200 group">
+                        <td class="px-8 py-5 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center mr-3 group-hover:bg-white transition-colors border border-transparent group-hover:border-gray-100">
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-gray-800 leading-none">{{ log.created_at|date:"H:i:s" }}</p>
+                                    <p class="text-[10px] text-gray-400 mt-1 uppercase">{{ log.created_at|date:"d M Y" }}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-8 py-5">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-black tracking-tighter 
+                                    {% if log.method == 'PUT' %}bg-amber-50 text-amber-600{% else %}bg-blue-50 text-blue-600{% endif %}">
+                                    {{ log.method|default:"POST" }}
+                                </span>
+                                <span class="text-[11px] font-mono text-gray-400">/api/worklist</span>
+                            </div>
+                        </td>
+                        <td class="px-8 py-5">
+                            <div>
+                                <p class="text-xs font-bold text-gray-900 leading-none">{{ log.accession_number }}</p>
+                                <p class="text-[10px] text-gray-500 mt-1 truncate max-w-[150px]">{{ log.patient_name }}</p>
+                            </div>
+                        </td>
+                        <td class="px-8 py-5">
+                            {% if log.status == 'Berhasil' %}
+                            <div class="inline-flex items-center px-4 py-1.5 rounded-full bg-green-50 text-green-600">
+                                <div class="w-2 h-2 rounded-full bg-green-500 mr-2 shadow-sm shadow-green-500/50"></div>
+                                <span class="text-[10px] font-black uppercase tracking-wider">Success</span>
+                            </div>
+                            {% elif log.status == 'Gagal' %}
+                            <div class="inline-flex items-center px-4 py-1.5 rounded-full bg-red-50 text-red-600">
+                                <div class="w-2 h-2 rounded-full bg-red-500 mr-2 shadow-sm shadow-red-500/50"></div>
+                                <span class="text-[10px] font-black uppercase tracking-wider">Failed</span>
+                            </div>
+                            {% else %}
+                            <div class="inline-flex items-center px-4 py-1.5 rounded-full bg-slate-100 text-slate-600">
+                                <span class="text-[10px] font-black uppercase tracking-wider">{{ log.status }}</span>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-8 py-5 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <button onclick="viewPayload('{{ log.id }}')" class="p-2 text-gray-300 hover:text-blue-600 transition-colors" title="View Raw Payload">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                                </button>
+                                <button onclick="viewLogDetail('{{ log.id }}')" class="p-2 text-gray-300 hover:text-blue-600 transition-colors" title="View Info">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </button>
+                            </div>
+                            
+                            <div id="log-data-{{ log.id }}" class="hidden"
+                                 data-acc="{{ log.accession_number }}"
+                                 data-pname="{{ log.patient_name }}"
+                                 data-status="{{ log.status }}"
+                                 data-method="{{ log.method }}"
+                                 data-time="{{ log.created_at|date:'H:i:s d M Y' }}"
+                                 data-err="{{ log.error_message|default:'' }}"
+                                 data-payload='{{ log.raw_payload|default:"{}"|safe }}'>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-8 py-20 text-center">
+                            <div class="flex flex-col items-center">
+                                <div class="w-20 h-20 bg-gray-50 rounded-[40%] flex items-center justify-center text-gray-200 mb-4 transform rotate-12">
+                                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                                </div>
+                                <h3 class="text-base font-black text-gray-900 tracking-tight">No Events Recorded</h3>
+                                <p class="text-xs text-gray-400 mt-1">Waiting for API traffic from SIMRS Terapi...</p>
+                            </div>
+                        </td>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Card Footer -->
+        <div class="px-10 py-8 flex items-center justify-between">
+            <p class="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">
+                Database Index: {{ logs.count }} Records
+            </p>
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                <span class="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Real-time Stream Active</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const searchInput = document.getElementById('logSearch');
+    const logTable = document.getElementById('logTable');
+
+    if (searchInput && logTable) {
+        searchInput.addEventListener('keyup', function() {
+            const term = this.value.toLowerCase();
+            const rows = logTable.querySelectorAll('tbody tr');
+            
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                row.style.display = text.includes(term) ? '' : 'none';
+            });
+        });
+    }
+
+    function viewPayload(id) {
+        const data = document.getElementById('log-data-' + id).dataset;
+        const modalBody = document.getElementById('modalBody');
+        const modalTitle = document.getElementById('modalTitle');
+        const backdrop = document.getElementById('modalBackdrop');
+        const content = document.getElementById('modalContent');
+
+        modalTitle.innerText = `Raw Payload: ${data.acc}`;
+        
+        let payloadObj = {};
+        try {
+            payloadObj = JSON.parse(data.payload);
+        } catch(e) {
+            payloadObj = { error: "Invalid JSON or Empty Payload", raw: data.payload };
+        }
+
+        modalBody.innerHTML = `
+            <div class="bg-slate-900 rounded-[2rem] p-8 overflow-hidden shadow-2xl">
+                <pre class="text-[11px] text-blue-300 font-mono leading-relaxed overflow-x-auto"><code>${JSON.stringify(payloadObj, null, 4)}</code></pre>
+            </div>
+            <div class="flex items-center justify-between mt-4 px-2">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">${data.method} /api/worklist</span>
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">${data.time}</span>
+            </div>
+        `;
+
+        backdrop.classList.remove('hidden');
+        setTimeout(() => {
+            backdrop.classList.remove('opacity-0');
+            content.classList.remove('scale-95', 'opacity-0');
+        }, 10);
+    }
+
+    function viewLogDetail(id) {
+        const data = document.getElementById('log-data-' + id).dataset;
+        const modalBody = document.getElementById('modalBody');
+        const modalTitle = document.getElementById('modalTitle');
+        const backdrop = document.getElementById('modalBackdrop');
+        const content = document.getElementById('modalContent');
+
+        modalTitle.innerText = `Event Detail: ${data.acc}`;
+        
+        modalBody.innerHTML = `
+            <div class="space-y-4">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-gray-900">${data.pname}</p>
+                        <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Patient Name</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-50 p-4 rounded-2xl">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status</p>
+                        <p class="text-sm font-bold ${data.status === 'Berhasil' || data.status === 'Updated' ? 'text-green-600' : 'text-red-600'}">${data.status}</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-2xl">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Method</p>
+                        <p class="text-sm font-bold text-gray-700">${data.method}</p>
+                    </div>
+                </div>
+                ${data.err ? `
+                <div class="bg-red-50 p-6 rounded-[1.5rem]">
+                    <p class="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Error Message</p>
+                    <p class="text-xs text-red-700 font-bold leading-relaxed">${data.err}</p>
+                </div>
+                ` : ''}
+            </div>
+        `;
+
+        backdrop.classList.remove('hidden');
+        setTimeout(() => {
+            backdrop.classList.remove('opacity-0');
+            content.classList.remove('scale-95', 'opacity-0');
+        }, 10);
+    }
+</script>
+{% endblock %}
