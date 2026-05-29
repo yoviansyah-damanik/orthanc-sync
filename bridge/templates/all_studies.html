@@ -1,0 +1,866 @@
+{% extends 'base.html' %}
+{% block title %}Daftar Study | Orthanc Bridge{% endblock %}
+{% block page_title %}Daftar Seluruh Study{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Stat Cards Row -->
+    <!-- Menampilkan rangkuman statistik dari data study yang dimuat -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <!-- Card: Total Study -->
+        <div class="bg-white rounded-[2rem] p-8 card-shadow transition-all hover:shadow-2xl hover:shadow-blue-500/5">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Study</p>
+            <div class="flex items-end justify-between">
+                <h3 id="statTotalStudies" class="text-3xl font-black text-slate-900 leading-none">-</h3>
+                <div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card: Study Hari Ini -->
+        <div class="bg-white rounded-[2rem] p-8 card-shadow transition-all hover:shadow-2xl hover:shadow-indigo-500/5">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Study Hari Ini</p>
+            <div class="flex items-end justify-between">
+                <h3 id="statTodayStudies" class="text-3xl font-black text-indigo-600 leading-none">-</h3>
+                <div class="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card: Modality Aktif -->
+        <div class="bg-white rounded-[2rem] p-8 card-shadow transition-all hover:shadow-2xl hover:shadow-emerald-500/5">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Modality Aktif</p>
+            <div class="flex items-end justify-between">
+                <h3 id="statActiveModalities" class="text-3xl font-black text-emerald-600 leading-none">-</h3>
+                <div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card: Total Seri DICOM -->
+        <div class="bg-white rounded-[2rem] p-8 card-shadow transition-all hover:shadow-2xl hover:shadow-amber-500/5">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Series</p>
+            <div class="flex items-end justify-between">
+                <h3 id="statTotalSeries" class="text-3xl font-black text-amber-600 leading-none">-</h3>
+                <div class="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
+        <!-- Toolbar Panel -->
+        <!-- Bagian pencarian dan reload data -->
+        <div class="px-10 py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900 leading-none mb-1">Studi DICOM di PACS</h2>
+                <p class="text-xs text-gray-400 mt-1">Daftar seluruh rekam medis gambar DICOM yang tersimpan di Orthanc PACS</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <!-- Search Input dengan icon -->
+                <div class="relative w-80">
+                    <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </span>
+                    <input type="text" id="studySearchInput" placeholder="Cari nama pasien..." 
+                        class="block w-full pl-12 pr-6 py-3.5 bg-slate-50 border border-transparent rounded-2xl focus:border-blue-500/30 focus:ring-4 focus:ring-blue-500/10 focus:bg-white text-sm outline-none transition-all shadow-sm">
+                </div>
+                <!-- Tombol Refresh -->
+                <button onclick="fetchStudies()" class="p-3.5 bg-slate-50 rounded-2xl text-slate-400 hover:text-blue-600 hover:bg-white hover:shadow-md border border-transparent hover:border-gray-100 transition-all" title="Segarkan Data">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Table View -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse" id="studiesTable">
+                <thead>
+                    <tr class="bg-slate-50/50 border-b border-slate-100">
+                        <th class="px-10 py-7 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Study</th>
+                        <th class="px-10 py-7 text-[10px] font-black text-slate-400 uppercase tracking-widest">Accession #</th>
+                        <th class="px-10 py-7 text-[10px] font-black text-slate-400 uppercase tracking-widest">Pasien</th>
+                        <th class="px-10 py-7 text-[10px] font-black text-slate-400 uppercase tracking-widest">Dokter Perujuk</th>
+                        <th class="px-10 py-7 text-[10px] font-black text-slate-400 uppercase tracking-widest">Modality</th>
+                        <th class="px-10 py-7 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Jumlah Seri</th>
+                        <th class="px-10 py-7 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="studiesTableBody">
+                    <!-- Data akan dimuat secara dinamis via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Table Footer -->
+        <div class="px-10 py-6 bg-slate-50/30 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <p id="totalRecordsLabel" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                Memuat daftar...
+            </p>
+            <div class="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50 animate-pulse"></span>
+                <span>PACS Orthanc Server Connected</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fullscreen Study Viewer Modal -->
+<div id="viewerModalBackdrop" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] hidden transition-opacity duration-300 opacity-0">
+    <div class="flex flex-col h-screen w-screen overflow-hidden">
+        <!-- Header -->
+        <div class="px-8 py-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center text-white flex-shrink-0">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/30">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-white leading-none mb-1" id="viewerModalTitle">DICOM Viewer</h3>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none" id="viewerModalSubtitle">Memuat metadata...</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <!-- Tombol Buka di Tab Baru -->
+                <a id="viewerExternalBtn" href="#" target="_blank" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                    </svg>
+                    Tab Baru
+                </a>
+                <!-- Tombol Tutup -->
+                <button onclick="closeViewerModal()" class="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <!-- Viewer Container -->
+        <div class="flex-1 bg-slate-950 relative">
+            <!-- Loading Spinner Overlay -->
+            <div id="viewerSpinner" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 z-10 transition-opacity duration-300">
+                <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Menginisialisasi DICOM Viewer...</p>
+            </div>
+            <!-- Iframe -->
+            <iframe id="viewerIframe" class="w-full h-full border-none" src=""></iframe>
+        </div>
+    </div>
+</div>
+
+<!-- Study Transfer Modal -->
+<div id="transferModalBackdrop" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[90] hidden transition-opacity duration-300 opacity-0 flex items-center justify-center p-4">
+    <div id="transferModalContent" class="bg-white rounded-[2rem] shadow-2xl max-w-md w-full overflow-hidden transform transition-all duration-300 scale-95 opacity-0 flex flex-col border border-slate-100">
+        <!-- Header -->
+        <div class="px-8 py-5 bg-slate-50 border-b border-slate-100 flex justify-between items-center flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 leading-none mb-1">Transfer Study</h3>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none">Kirim DICOM ke PACS/Node Lain</p>
+                </div>
+            </div>
+            <button onclick="closeTransferModal()" class="p-2 text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-8 space-y-6">
+            <!-- Study Info -->
+            <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100/50 text-xs space-y-3">
+                <div class="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                    <span class="text-slate-400 font-bold">Nama Pasien:</span>
+                    <span class="font-black text-slate-800" id="transferPatientName">-</span>
+                </div>
+                <div class="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                    <span class="text-slate-400 font-bold">Accession:</span>
+                    <span class="font-bold text-slate-800" id="transferAccession">-</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400 font-bold">Study ID:</span>
+                    <span class="font-mono text-[10px] text-slate-500" id="transferStudyId">-</span>
+                </div>
+            </div>
+
+            <!-- Target DICOM Device -->
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Pilih Node Tujuan DICOM (C-STORE) *</label>
+                <select id="transferTargetDevice" class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20 font-bold text-slate-700">
+                    <option value="" disabled selected>-- Pilih Perangkat DICOM --</option>
+                    {% for device in devices %}
+                    <option value="{{ device.id }}">{{ device.name }} ({{ device.ae_title }} - {{ device.host }}:{{ device.port }})</option>
+                    {% empty %}
+                    <option value="" disabled>Belum ada node DICOM terdaftar</option>
+                    {% endfor %}
+                </select>
+                {% if not devices %}
+                <p class="text-[10px] text-red-500 mt-2 font-bold uppercase tracking-wider">Warning: Silakan daftarkan perangkat DICOM di menu <a href="{% url 'dicom_router_page' %}" class="underline text-indigo-600">DICOM Router</a> terlebih dahulu.</p>
+                {% endif %}
+            </div>
+
+            <!-- Loading Spinner (Hidden by default) -->
+            <div id="transferProgress" class="hidden flex flex-col items-center justify-center py-4">
+                <div class="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse" id="transferStatusText">Mengirimkan file DICOM...</p>
+            </div>
+            
+            <!-- Error/Success Alert Box -->
+            <div id="transferAlert" class="hidden rounded-xl p-4 text-xs font-bold"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 flex-shrink-0">
+            <button onclick="closeTransferModal()" id="btnCancelTransfer" class="px-5 py-3.5 bg-white border border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">Batal</button>
+            <button onclick="executeTransfer()" id="btnSubmitTransfer" class="px-6 py-3.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                </svg>
+                Kirim
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const ORTHANC_URL = "{{ orthanc_url }}";
+
+    // Inisialisasi data dan filter pencarian
+    let studiesData = [];
+    const searchInput = document.getElementById('studySearchInput');
+    const tableBody = document.getElementById('studiesTableBody');
+    const totalRecordsLabel = document.getElementById('totalRecordsLabel');
+
+    // Menangani pencarian dengan fungsi debounce agar tidak melakukan spam AJAX request
+    let searchTimeout = null;
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                fetchStudies(this.value.trim());
+            }, 300);
+        });
+    }
+
+    // Fungsi helper untuk menentukan style badge modality
+    function getModalityBadgeClass(modality) {
+        const mod = modality.toUpperCase().trim();
+        if (mod === 'CT') return 'bg-blue-50 text-blue-700 border border-blue-200/50';
+        if (mod === 'MR') return 'bg-purple-50 text-purple-700 border border-purple-200/50';
+        if (mod === 'US') return 'bg-emerald-50 text-emerald-700 border border-emerald-200/50';
+        if (['CR', 'DX', 'PX', 'DR'].includes(mod)) return 'bg-amber-50 text-amber-700 border border-amber-200/50';
+        if (['XA', 'RF'].includes(mod)) return 'bg-rose-50 text-rose-700 border border-rose-200/50';
+        if (mod === 'MG') return 'bg-pink-50 text-pink-700 border border-pink-200/50';
+        return 'bg-slate-50 text-slate-600 border border-slate-200/50';
+    }
+
+    // Render loading skeleton untuk baris tabel
+    function renderSkeleton() {
+        let skeletonHTML = '';
+        for (let i = 0; i < 5; i++) {
+            skeletonHTML += `
+                <tr class="animate-pulse border-b border-slate-50">
+                    <td class="px-10 py-7">
+                        <div class="h-4 bg-slate-100 rounded-lg w-20 mb-2"></div>
+                        <div class="h-3 bg-slate-50 rounded-lg w-12"></div>
+                    </td>
+                    <td class="px-10 py-7">
+                        <div class="h-6 bg-slate-100 rounded-lg w-24"></div>
+                    </td>
+                    <td class="px-10 py-7">
+                        <div class="h-4 bg-slate-100 rounded-lg w-36 mb-2"></div>
+                        <div class="h-3 bg-slate-50 rounded-lg w-20"></div>
+                    </td>
+                    <td class="px-10 py-7">
+                        <div class="h-4 bg-slate-100 rounded-lg w-28"></div>
+                    </td>
+                    <td class="px-10 py-7">
+                        <div class="h-6 bg-slate-100 rounded-full w-14"></div>
+                    </td>
+                    <td class="px-10 py-7">
+                        <div class="h-4 bg-slate-100 rounded-lg w-40"></div>
+                    </td>
+                    <td class="px-10 py-7 text-center">
+                        <div class="h-6 bg-slate-100 rounded-full w-8 mx-auto"></div>
+                    </td>
+                    <td class="px-10 py-7 text-right">
+                        <div class="h-9 bg-slate-100 rounded-xl w-16 ml-auto"></div>
+                    </td>
+                </tr>
+            `;
+        }
+        tableBody.innerHTML = skeletonHTML;
+    }
+
+    // Mengambil daftar study dari API Django secara asinkron
+    async function fetchStudies(searchQuery = '') {
+        renderSkeleton();
+        
+        try {
+            const url = searchQuery 
+                ? `/api/orthanc-studies/?search=${encodeURIComponent(searchQuery)}`
+                : '/api/orthanc-studies/';
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.message || 'Gagal mengambil data dari PACS');
+            }
+            
+            studiesData = data.studies || [];
+            renderTable(studiesData);
+            updateStats(studiesData);
+            
+        } catch (error) {
+            console.error('Fetch error:', error);
+            showToast(error.message, 'error');
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="px-10 py-20 text-center">
+                        <div class="flex flex-col items-center justify-center">
+                            <div class="w-16 h-16 bg-red-50 rounded-[40%] flex items-center justify-center text-red-500 mb-4 animate-bounce">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-base font-black text-gray-900 tracking-tight">Koneksi Error</h3>
+                            <p class="text-xs text-gray-400 mt-1 max-w-sm">${error.message}</p>
+                            <button onclick="fetchStudies()" class="mt-4 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-xs font-black uppercase tracking-wider transition-colors shadow-sm">
+                                Coba Lagi
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    // Memperbarui stat card berdasarkan data study
+    function updateStats(studies) {
+        // Jumlah total study
+        document.getElementById('statTotalStudies').innerText = studies.length;
+
+        // Mendapatkan tanggal hari ini dalam format DD-MM-YYYY
+        const today = new Date();
+        const dd = String(today.getDate()).padStart(2, '0');
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const yyyy = today.getFullYear();
+        const formattedToday = `${dd}-${mm}-${yyyy}`;
+
+        // Menghitung study hari ini
+        const todayCount = studies.filter(s => s.study_date === formattedToday).length;
+        document.getElementById('statTodayStudies').innerText = todayCount;
+
+        // Menghitung modality aktif
+        const activeMods = new Set();
+        let seriesSum = 0;
+        studies.forEach(s => {
+            if (s.modality && Array.isArray(s.modality)) {
+                s.modality.forEach(m => activeMods.add(m));
+            }
+            seriesSum += s.series_count || 0;
+        });
+
+        document.getElementById('statActiveModalities').innerText = activeMods.size;
+        document.getElementById('statTotalSeries').innerText = seriesSum;
+    }
+
+    // Merender baris tabel secara dinamis ke halaman
+    function renderTable(studies) {
+        if (!studies || studies.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="px-10 py-20 text-center">
+                        <div class="flex flex-col items-center justify-center">
+                            <div class="w-16 h-16 bg-slate-50 rounded-[40%] flex items-center justify-center text-slate-300 mb-4 transform rotate-12">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-base font-black text-gray-900 tracking-tight">Tidak Ada Study Ditemukan</h3>
+                            <p class="text-xs text-gray-400 mt-1">PACS server tidak menyimpan rekaman study atau filter pencarian tidak cocok.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            totalRecordsLabel.innerText = 'Index Database: 0 Record';
+            return;
+        }
+
+        totalRecordsLabel.innerText = `Index Database: ${studies.length} Records`;
+        
+        let rowsHTML = '';
+        studies.forEach(s => {
+            // Memproses badges modality
+            let badgesHTML = '';
+            if (s.modality && Array.isArray(s.modality) && s.modality.length > 0) {
+                s.modality.forEach(mod => {
+                    if (mod) {
+                        badgesHTML += `
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-tighter ${getModalityBadgeClass(mod)} mr-1">
+                                ${mod}
+                            </span>
+                        `;
+                    }
+                });
+            } else {
+                badgesHTML = `<span class="text-[10px] text-gray-400">-</span>`;
+            }
+
+            rowsHTML += `
+                <tr class="hover:bg-blue-50/20 transition-all duration-200 group border-b border-slate-50">
+                    <!-- Kolom Tanggal -->
+                    <td class="px-10 py-7 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center mr-3 group-hover:bg-white border border-transparent group-hover:border-slate-100 transition-colors">
+                                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <span class="text-xs font-bold text-gray-800">${s.study_date}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <!-- Accession Number -->
+                    <td class="px-10 py-7 whitespace-nowrap">
+                        <span class="text-[11px] font-black font-mono tracking-widest text-slate-700 bg-slate-50 group-hover:bg-white border border-slate-100 px-2.5 py-1 rounded-lg">
+                            ${s.accession_number || '-'}
+                        </span>
+                    </td>
+                    <!-- Detail Pasien -->
+                    <td class="px-10 py-7">
+                        <div class="text-xs font-bold text-gray-900 max-w-[200px] truncate leading-tight mb-1" title="${s.patient_name}">
+                            ${s.patient_name}
+                        </div>
+                        <div class="text-[10px] font-mono text-slate-400 tracking-wider">
+                            ID: ${s.patient_id || '-'}
+                        </div>
+                    </td>
+                    <!-- Dokter Perujuk -->
+                    <td class="px-10 py-7">
+                        <span class="text-xs font-bold text-slate-700 block max-w-[180px] truncate" title="${s.referring_physician || '-'}">
+                            ${s.referring_physician || '-'}
+                        </span>
+                    </td>
+                    <!-- Modality Badges -->
+                    <td class="px-10 py-7 whitespace-nowrap">
+                        <div class="flex flex-wrap max-w-[120px]">
+                            ${badgesHTML}
+                        </div>
+                    </td>
+                    <!-- Series Count -->
+                    <td class="px-10 py-7 whitespace-nowrap text-center">
+                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-blue-600 text-xs font-bold">
+                            ${s.series_count || 0}
+                        </span>
+                    </td>
+                    <!-- Tombol Detail & Lihat -->
+                    <td class="px-10 py-7 whitespace-nowrap text-right">
+                        <div class="flex items-center justify-end gap-2">
+                            <button onclick="openViewerModal('${s.study_instance_uid || s.study_id}', '${s.patient_name.replace(/'/g, "\\'")}', '${s.accession_number || ''}')" class="px-3.5 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-emerald-100/50 hover:shadow-lg hover:shadow-emerald-500/25 group-hover:opacity-100 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                                Lihat
+                            </button>
+                            <button onclick="openTransferModal('${s.study_id}', '${s.patient_name.replace(/'/g, "\\'")}', '${s.accession_number || ''}')" class="px-3.5 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-indigo-100/50 hover:shadow-lg hover:shadow-indigo-500/25 group-hover:opacity-100 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                                </svg>
+                                Transfer
+                            </button>
+                            <button onclick="viewStudyDetail('${s.study_id}')" class="px-3.5 py-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-blue-100/50 hover:shadow-lg hover:shadow-blue-500/25 group-hover:opacity-100">
+                                Detail
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        tableBody.innerHTML = rowsHTML;
+    }
+
+    // Mengambil rincian detail study dan menampilkannya di modal asinkron
+    async function viewStudyDetail(studyId) {
+        const modalBody = document.getElementById('modalBody');
+        const modalTitle = document.getElementById('modalTitle');
+        const backdrop = document.getElementById('modalBackdrop');
+        const content = document.getElementById('modalContent');
+
+        if (!backdrop || !content) return;
+
+        // Set judul sementara dan tampilkan loading state di modal body
+        modalTitle.innerText = 'Rincian Detail Study';
+        modalBody.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-20 animate-pulse">
+                <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Mengambil data seri & instances dari PACS...</p>
+            </div>
+        `;
+
+        // Tampilkan modal terlebih dahulu
+        backdrop.classList.remove('hidden');
+        setTimeout(() => {
+            backdrop.classList.remove('opacity-0');
+            content.classList.remove('scale-95', 'opacity-0');
+        }, 10);
+
+        try {
+            const response = await fetch(`/api/orthanc-studies/${studyId}/`);
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.message || 'Gagal memuat detail study');
+            }
+
+            modalTitle.innerText = `Study: ${data.patient_name}`;
+
+            // Membangun tabel series DICOM
+            let seriesRows = '';
+            if (data.series && data.series.length > 0) {
+                data.series.forEach(ser => {
+                    seriesRows += `
+                        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                            <td class="px-6 py-4.5 text-center text-xs font-bold text-gray-700">${ser.series_number || '-'}</td>
+                            <td class="px-6 py-4.5 text-xs text-slate-500 truncate max-w-[200px]" title="${ser.series_description || '-'}">
+                                ${ser.series_description || '-'}
+                            </td>
+                            <td class="px-6 py-4.5 text-center">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter ${getModalityBadgeClass(ser.modality)}">
+                                    ${ser.modality || '-'}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4.5 text-center">
+                                <span class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-black">
+                                    ${ser.instances_count || 0}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4.5 font-mono text-[10px] text-slate-400 select-all" title="Klik ganda untuk memilih UID">${ser.series_instance_uid || '-'}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                seriesRows = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-xs text-gray-400">
+                            Tidak ada seri DICOM yang terekam pada study ini.
+                        </td>
+                    </tr>
+                `;
+            }
+
+            // Membangun struktur layout detail dalam modal
+            modalBody.innerHTML = `
+                <div class="space-y-6">
+                    <!-- Bagian Grid Identitas Pasien & Study -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Card: Informasi Pasien -->
+                        <div class="bg-slate-50 rounded-[1.5rem] p-6 border border-slate-100/50">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Informasi Pasien</h4>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center py-1.5 border-b border-dashed border-slate-200">
+                                    <span class="text-xs text-slate-400 font-bold">Nama Lengkap</span>
+                                    <span class="text-xs font-black text-slate-900">${data.patient_name}</span>
+                                </div>
+                                <div class="flex justify-between items-center py-1.5 border-b border-dashed border-slate-200">
+                                    <span class="text-xs text-slate-400 font-bold">Patient ID</span>
+                                    <span class="text-xs font-mono font-bold text-slate-900">${data.patient_id}</span>
+                                </div>
+                                <div class="flex justify-between items-center py-1.5 border-b border-dashed border-slate-200">
+                                    <span class="text-xs text-slate-400 font-bold">Tanggal Lahir</span>
+                                    <span class="text-xs font-bold text-slate-900">${data.patient_birth_date || '-'}</span>
+                                </div>
+                                <div class="flex justify-between items-center py-1.5">
+                                    <span class="text-xs text-slate-400 font-bold">Jenis Kelamin</span>
+                                    <span class="text-xs font-bold text-slate-900">
+                                        ${data.patient_sex === 'M' ? 'Laki-laki (M)' : data.patient_sex === 'F' ? 'Perempuan (F)' : data.patient_sex || '-'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card: Informasi Rekam Medis (Study) -->
+                        <div class="bg-slate-50 rounded-[1.5rem] p-6 border border-slate-100/50">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Informasi Studi PACS</h4>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center py-1.5 border-b border-dashed border-slate-200">
+                                    <span class="text-xs text-slate-400 font-bold">Accession Number</span>
+                                    <span class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">${data.accession_number || '-'}</span>
+                                </div>
+                                <div class="flex justify-between items-center py-1.5 border-b border-dashed border-slate-200">
+                                    <span class="text-xs text-slate-400 font-bold">Tanggal & Waktu</span>
+                                    <span class="text-xs font-bold text-slate-900">${data.study_date} ${data.study_time || ''}</span>
+                                </div>
+                                <div class="flex justify-between items-center py-1.5 border-b border-dashed border-slate-200">
+                                    <span class="text-xs text-slate-400 font-bold">Dokter Perujuk</span>
+                                    <span class="text-xs font-bold text-slate-900">${data.referring_physician || '-'}</span>
+                                </div>
+                                <div class="flex justify-between items-center py-1.5">
+                                    <span class="text-xs text-slate-400 font-bold">Jumlah Seri / Instance</span>
+                                    <span class="text-xs font-bold text-slate-900">${data.total_series} Seri / ${data.total_instances} Instances</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panel Deskripsi & Study Instance UID -->
+                    <div class="bg-slate-50 rounded-[1.5rem] p-6 border border-slate-100/50 space-y-4">
+                        <div>
+                            <span class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Deskripsi Studi</span>
+                            <span class="text-xs font-bold text-slate-800 leading-relaxed block">${data.study_description || '-'}</span>
+                        </div>
+                        <div class="border-t border-slate-200 pt-3 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                            <div>
+                                <span class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Study Instance UID</span>
+                                <span class="font-mono text-[10px] text-slate-400 tracking-tight leading-none block select-all break-all" id="studyUidSpan">${data.study_instance_uid || '-'}</span>
+                            </div>
+                            <button onclick="navigator.clipboard.writeText('${data.study_instance_uid}'); showToast('UID disalin ke papan klip!', 'success')" 
+                                class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-500 hover:text-blue-600 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all hover:shadow-sm">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+                                </svg>
+                                Salin UID
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tabel Daftar Seri (Series List) -->
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Daftar Seri DICOM (${data.total_series})</h4>
+                        </div>
+                        <div class="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50/50 border-b border-slate-100">
+                                        <th class="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-16">No</th>
+                                        <th class="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Deskripsi Seri</th>
+                                        <th class="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-24">Modality</th>
+                                        <th class="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-28">Instances</th>
+                                        <th class="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Series Instance UID</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${seriesRows}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+        } catch (error) {
+            console.error('Modal fetch error:', error);
+            showToast(error.message, 'error');
+            modalBody.innerHTML = `
+                <div class="text-center py-20">
+                    <div class="w-12 h-12 bg-red-50 text-red-500 rounded-[40%] flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                    <p class="text-sm font-bold text-slate-800">Gagal memuat rincian study</p>
+                    <p class="text-xs text-slate-400 mt-1">${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    // Fungsi untuk membuka DICOM Viewer dalam modal fullscreen
+    // studyInstanceUid: DICOM Study Instance UID (1.2.840...) digunakan sebagai parameter viewer
+    function openViewerModal(studyInstanceUid, patientName, accessionNumber) {
+        const backdrop = document.getElementById('viewerModalBackdrop');
+        const iframe = document.getElementById('viewerIframe');
+        const spinner = document.getElementById('viewerSpinner');
+        const title = document.getElementById('viewerModalTitle');
+        const subtitle = document.getElementById('viewerModalSubtitle');
+        const externalBtn = document.getElementById('viewerExternalBtn');
+
+        title.innerText = patientName;
+        subtitle.innerText = `Accession: ${accessionNumber || '-'} | UID: ${studyInstanceUid}`;
+
+        // Membangun URL untuk OHIF Viewer menggunakan Study Instance UID
+        const cleanUrl = ORTHANC_URL.replace(/\/$/, '');
+        const viewerUrl = `${cleanUrl}/ohif/viewer?StudyInstanceUIDs=${studyInstanceUid}`;
+
+        iframe.src = viewerUrl;
+        externalBtn.href = viewerUrl;
+
+        backdrop.classList.remove('hidden');
+        setTimeout(() => {
+            backdrop.classList.remove('opacity-0');
+        }, 10);
+
+        // Menampilkan loading spinner sampai iframe selesai dimuat
+        spinner.style.opacity = '1';
+        spinner.classList.remove('hidden');
+
+        iframe.onload = () => {
+            spinner.style.opacity = '0';
+            setTimeout(() => {
+                spinner.classList.add('hidden');
+            }, 300);
+        };
+    }
+
+    // Fungsi untuk menutup DICOM Viewer dan membebaskan memori
+    function closeViewerModal() {
+        const backdrop = document.getElementById('viewerModalBackdrop');
+        const iframe = document.getElementById('viewerIframe');
+        
+        backdrop.classList.add('opacity-0');
+        setTimeout(() => {
+            backdrop.classList.add('hidden');
+            iframe.src = ''; // Mengosongkan iframe agar tidak memakan RAM
+        }, 300);
+    }
+
+    // Variabel global untuk melacak study ID yang sedang ditransfer
+    let currentTransferStudyId = '';
+
+    // Fungsi untuk membuka modal transfer DICOM
+    function openTransferModal(studyId, patientName, accessionNumber) {
+        currentTransferStudyId = studyId;
+        
+        // Reset field dan state modal
+        document.getElementById('transferPatientName').innerText = patientName;
+        document.getElementById('transferAccession').innerText = accessionNumber || '-';
+        document.getElementById('transferStudyId').innerText = studyId;
+        
+        const deviceSelect = document.getElementById('transferTargetDevice');
+        deviceSelect.value = ''; // Reset pilihan
+        deviceSelect.disabled = false;
+        
+        const alertBox = document.getElementById('transferAlert');
+        alertBox.className = 'hidden rounded-xl p-4 text-xs font-bold';
+        alertBox.innerText = '';
+        
+        document.getElementById('transferProgress').classList.add('hidden');
+        document.getElementById('btnSubmitTransfer').disabled = false;
+        document.getElementById('btnCancelTransfer').disabled = false;
+
+        const backdrop = document.getElementById('transferModalBackdrop');
+        const content = document.getElementById('transferModalContent');
+        
+        backdrop.classList.remove('hidden');
+        setTimeout(() => {
+            backdrop.classList.remove('opacity-0');
+            content.classList.remove('scale-95', 'opacity-0');
+        }, 10);
+    }
+
+    // Fungsi untuk menutup modal transfer
+    function closeTransferModal() {
+        const backdrop = document.getElementById('transferModalBackdrop');
+        const content = document.getElementById('transferModalContent');
+        
+        backdrop.classList.add('opacity-0');
+        content.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            backdrop.classList.add('hidden');
+            currentTransferStudyId = '';
+        }, 300);
+    }
+
+    // Fungsi untuk mengeksekusi transfer DICOM study ke node tujuan
+    async function executeTransfer() {
+        const deviceId = document.getElementById('transferTargetDevice').value;
+        const alertBox = document.getElementById('transferAlert');
+        const progress = document.getElementById('transferProgress');
+        const btnSubmit = document.getElementById('btnSubmitTransfer');
+        const btnCancel = document.getElementById('btnCancelTransfer');
+        const deviceSelect = document.getElementById('transferTargetDevice');
+
+        if (!deviceId) {
+            alertBox.className = 'rounded-xl p-4 text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200/50';
+            alertBox.innerText = 'Silakan pilih node DICOM tujuan terlebih dahulu.';
+            alertBox.classList.remove('hidden');
+            return;
+        }
+
+        // Tampilkan progress & matikan input
+        alertBox.classList.add('hidden');
+        progress.classList.remove('hidden');
+        btnSubmit.disabled = true;
+        btnCancel.disabled = true;
+        deviceSelect.disabled = true;
+
+        try {
+            const response = await fetch('/api/dicom-transfer/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    study_id: currentTransferStudyId,
+                    device_id: deviceId
+                })
+            });
+
+            const data = await response.json();
+
+            // Sembunyikan progress spinner
+            progress.classList.add('hidden');
+
+            if (data.success) {
+                alertBox.className = 'rounded-xl p-4 text-xs font-bold bg-green-50 text-green-700 border border-green-200/50';
+                alertBox.innerText = data.message;
+                alertBox.classList.remove('hidden');
+                
+                // Aktifkan kembali tombol batal agar user bisa menutup modal setelah berhasil
+                btnCancel.disabled = false;
+            } else {
+                throw new Error(data.message || 'Gagal melakukan transfer study.');
+            }
+
+        } catch (error) {
+            progress.classList.add('hidden');
+            alertBox.className = 'rounded-xl p-4 text-xs font-bold bg-red-50 text-red-700 border border-red-200/50';
+            alertBox.innerText = error.message;
+            alertBox.classList.remove('hidden');
+            
+            // Aktifkan kembali input
+            btnSubmit.disabled = false;
+            btnCancel.disabled = false;
+            deviceSelect.disabled = false;
+        }
+    }
+
+    // Jalankan fetch otomatis saat halaman pertama kali dibuka
+    window.addEventListener('DOMContentLoaded', () => {
+        fetchStudies();
+    });
+</script>
+{% endblock %}

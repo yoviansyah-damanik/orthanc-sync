@@ -14,6 +14,8 @@ class APIKey(models.Model):
     name = models.CharField(max_length=100, help_text="Nama aplikasi/sistem pemanggil")
     key = models.CharField(max_length=64, unique=True, blank=True)
     webhook_url = models.URLField(max_length=500, null=True, blank=True, help_text="URL callback default untuk sistem ini")
+    webhook_username = models.CharField(max_length=150, null=True, blank=True, help_text="Username untuk Basic Auth callback")
+    webhook_password = models.CharField(max_length=150, null=True, blank=True, help_text="Password untuk Basic Auth callback")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_used = models.DateTimeField(null=True, blank=True)
@@ -84,3 +86,26 @@ class SystemConfig(models.Model):
             return cls.objects.get(key=key).value
         except cls.DoesNotExist:
             return default
+
+class DicomDevice(models.Model):
+    """Menyimpan perangkat DICOM yang ditemukan/terdaftar dalam jaringan"""
+    STATUS_CHOICES = [
+        ('online', 'Online'),
+        ('offline', 'Offline'),
+        ('unverified', 'Belum Diverifikasi'),
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, help_text="Nama deskriptif perangkat")
+    ae_title = models.CharField(max_length=64, blank=True, default='', help_text="DICOM AE Title")
+    host = models.GenericIPAddressField(help_text="IP Address perangkat")
+    port = models.PositiveIntegerField(default=104, help_text="Port DICOM")
+    description = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unverified')
+    last_checked = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.ae_title}) - {self.host}:{self.port}"
+
+    class Meta:
+        ordering = ['host', 'port']

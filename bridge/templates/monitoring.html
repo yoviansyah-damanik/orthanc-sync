@@ -1,0 +1,657 @@
+{% extends 'base.html' %}
+{% block title %}Monitoring | Orthanc Bridge{% endblock %}
+
+{% block page_title %}Dashboard Monitoring & Statistik{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Header Page -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h3 class="text-xl font-extrabold text-gray-900 tracking-tight">Analitik Aktivitas Sistem</h3>
+            <p class="text-xs text-gray-500">Pantau volume transaksi API, distribusi modalitas medis, dan status sinkronisasi secara real-time</p>
+        </div>
+        <button onclick="loadMonitoringData()" id="refreshBtn" class="flex items-center justify-center gap-2 px-5 py-3.5 bg-white border border-gray-100 rounded-2xl hover:bg-slate-50 active:scale-95 transition-all text-xs font-bold text-gray-700 shadow-sm">
+            <svg id="refreshIcon" class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.22m-.01 0h3m-3 0v3"></path>
+            </svg>
+            Perbarui Data
+        </button>
+    </div>
+
+    <!-- FILTER BAR -->
+    <div class="bg-white p-5 rounded-[2rem] card-shadow border border-slate-100/50 flex flex-wrap items-center justify-between gap-6">
+        <div class="flex flex-wrap items-center gap-4 flex-1">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <div class="relative">
+                    <select id="filterPreset" onchange="handlePresetChange()" class="appearance-none pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-100 rounded-xl outline-none text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:bg-white cursor-pointer transition-all shadow-sm">
+                        <option value="today">Hari Ini</option>
+                        <option value="7d">7 Hari Terakhir</option>
+                        <option value="30d" selected>30 Hari Terakhir</option>
+                        <option value="90d">90 Hari Terakhir</option>
+                        <option value="custom">Rentang Kustom...</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom date range wrapper -->
+            <div id="customDateRange" class="hidden flex-wrap items-center gap-4 transition-all duration-300">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mulai</span>
+                    <input type="date" id="startDate" class="px-4 py-2.5 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all shadow-sm">
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selesai</span>
+                    <input type="date" id="endDate" class="px-4 py-2.5 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all shadow-sm">
+                </div>
+                <button onclick="loadMonitoringData()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all text-xs font-bold text-white rounded-xl shadow-sm shadow-blue-500/10">
+                    Terapkan
+                </button>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <span id="dateRangeIndicator" class="text-[10px] font-black text-slate-400 uppercase tracking-wider hidden sm:inline-block">Filter Aktif: 30 Hari Terakhir</span>
+        </div>
+    </div>
+
+    <!-- Summary Statistics Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Card 1: Total API Request -->
+        <div class="relative overflow-hidden bg-white p-6 rounded-[2rem] card-shadow border border-slate-100/50 group hover:-translate-y-1 transition-all duration-300">
+            <div class="absolute -right-8 -top-8 w-24 h-24 bg-blue-500/5 rounded-full blur-xl group-hover:bg-blue-500/10 transition-all"></div>
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-sm shadow-blue-500/5 group-hover:scale-105 transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Logs Dalam Filter</p>
+                    <h4 id="statTotalLogs" class="text-2xl font-black text-slate-800 tracking-tight leading-none">-</h4>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                <span class="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                <span>Jumlah log sesuai interval tanggal</span>
+            </div>
+        </div>
+
+        <!-- Card 2: Request Today -->
+        <div class="relative overflow-hidden bg-white p-6 rounded-[2rem] card-shadow border border-slate-100/50 group hover:-translate-y-1 transition-all duration-300">
+            <div class="absolute -right-8 -top-8 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl group-hover:bg-indigo-500/10 transition-all"></div>
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-sm shadow-indigo-500/5 group-hover:scale-105 transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Request Hari Ini</p>
+                    <h4 id="statLogsToday" class="text-2xl font-black text-slate-800 tracking-tight leading-none">-</h4>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
+                <span>Jumlah request dalam 24 jam terakhir</span>
+            </div>
+        </div>
+
+        <!-- Card 3: Success Rate -->
+        <div class="relative overflow-hidden bg-white p-6 rounded-[2rem] card-shadow border border-slate-100/50 group hover:-translate-y-1 transition-all duration-300">
+            <div class="absolute -right-8 -top-8 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl group-hover:bg-emerald-500/10 transition-all"></div>
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shadow-sm shadow-emerald-500/5 group-hover:scale-105 transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Success Rate</p>
+                    <h4 id="statSuccessRate" class="text-2xl font-black text-slate-800 tracking-tight leading-none">-%</h4>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                <span id="statSuccessBadge" class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                <span id="statSuccessSubtext">0 dari 0 logs berhasil</span>
+            </div>
+        </div>
+
+        <!-- Card 4: Active Worklists -->
+        <div class="relative overflow-hidden bg-white p-6 rounded-[2rem] card-shadow border border-slate-100/50 group hover:-translate-y-1 transition-all duration-300">
+            <div class="absolute -right-8 -top-8 w-24 h-24 bg-violet-500/5 rounded-full blur-xl group-hover:bg-violet-500/10 transition-all"></div>
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-violet-50 text-violet-600 rounded-2xl flex items-center justify-center shadow-sm shadow-violet-500/5 group-hover:scale-105 transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Worklist Terfilter</p>
+                    <h4 id="statActiveWorklists" class="text-2xl font-black text-slate-800 tracking-tight leading-none">-</h4>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                <span class="w-1.5 h-1.5 bg-violet-500 rounded-full"></span>
+                <span id="statActiveSubtext">0 total terdaftar dalam interval</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Grid Row 1: Line Chart & Doughnut Status -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Activity Line Chart -->
+        <div class="bg-white p-6 sm:p-8 rounded-[2.5rem] card-shadow border border-slate-100/50 lg:col-span-2 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h4 class="text-sm font-extrabold text-slate-800 tracking-tight">Tren Aktivitas API</h4>
+                    <p class="text-[10.5px] text-slate-400">Menampilkan volume log per hari untuk melacak tren beban sistem</p>
+                </div>
+                <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="relative w-full h-[320px]">
+                <canvas id="dailyActivityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Event Status Doughnut Chart -->
+        <div class="bg-white p-6 sm:p-8 rounded-[2.5rem] card-shadow border border-slate-100/50 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h4 class="text-sm font-extrabold text-slate-800 tracking-tight">Distribusi Status Event</h4>
+                    <p class="text-[10.5px] text-slate-400">Breakdown status respon log dari endpoint API</p>
+                </div>
+                <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="relative w-full h-[260px] flex items-center justify-center">
+                <canvas id="statusDistributionChart"></canvas>
+            </div>
+            <div id="statusLegendContainer" class="mt-4 flex flex-wrap gap-x-4 gap-y-1 justify-center text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                <!-- Legend dynamically inserted -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Grid Row 2: Bar Chart Hourly & Pie HTTP Method -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- HTTP Method Distribution -->
+        <div class="bg-white p-6 sm:p-8 rounded-[2.5rem] card-shadow border border-slate-100/50 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h4 class="text-sm font-extrabold text-slate-800 tracking-tight">Metode HTTP</h4>
+                    <p class="text-[10.5px] text-slate-400">Distribusi request berdasarkan metode HTTP yang dipanggil</p>
+                </div>
+                <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="relative w-full h-[260px] flex items-center justify-center">
+                <canvas id="methodDistributionChart"></canvas>
+            </div>
+            <div id="methodLegendContainer" class="mt-4 flex flex-wrap gap-x-4 gap-y-1 justify-center text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                <!-- Legend dynamically inserted -->
+            </div>
+        </div>
+
+        <!-- 24-Hour Activity Histogram -->
+        <div class="bg-white p-6 sm:p-8 rounded-[2.5rem] card-shadow border border-slate-100/50 lg:col-span-2 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h4 class="text-sm font-extrabold text-slate-800 tracking-tight">Pola Jam Aktivitas (Aktivitas 24 Jam)</h4>
+                    <p class="text-[10.5px] text-slate-400">Visualisasi jam-jam sibuk di mana request API paling sering diterima</p>
+                </div>
+                <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="relative w-full h-[320px]">
+                <canvas id="hourlyActivityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Grid Row 3: Horizontal Modalities Chart -->
+    <div class="bg-white p-6 sm:p-8 rounded-[2.5rem] card-shadow border border-slate-100/50 w-full">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h4 class="text-sm font-extrabold text-slate-800 tracking-tight">Top 8 Modalitas Medis Populer</h4>
+                <p class="text-[10.5px] text-slate-400">Modalitas dengan volume worklist terbanyak (diambil dari database aktif)</p>
+            </div>
+            <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                </svg>
+            </div>
+        </div>
+        <div class="relative w-full h-[280px]">
+            <canvas id="modalityDistributionChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Menyimpan instance chart global agar dapat di-destroy sebelum re-render
+    let dailyChartInstance = null;
+    let statusChartInstance = null;
+    let methodChartInstance = null;
+    let hourlyChartInstance = null;
+    let modalityChartInstance = null;
+
+    // Load data ketika halaman siap
+    document.addEventListener("DOMContentLoaded", function () {
+        // Set input tanggal kustom default ke hari ini
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('startDate').value = todayStr;
+        document.getElementById('endDate').value = todayStr;
+        
+        loadMonitoringData();
+    });
+
+    // Menangani perubahan preset filter
+    function handlePresetChange() {
+        const preset = document.getElementById('filterPreset').value;
+        const customContainer = document.getElementById('customDateRange');
+        const rangeIndicator = document.getElementById('dateRangeIndicator');
+
+        const presetLabels = {
+            'today': 'Hari Ini',
+            '7d': '7 Hari Terakhir',
+            '30d': '30 Hari Terakhir',
+            '90d': '90 Hari Terakhir'
+        };
+
+        if (preset === 'custom') {
+            customContainer.classList.remove('hidden');
+            customContainer.classList.add('flex');
+            rangeIndicator.innerText = 'Filter Aktif: Rentang Kustom';
+        } else {
+            customContainer.classList.remove('flex');
+            customContainer.classList.add('hidden');
+            rangeIndicator.innerText = 'Filter Aktif: ' + (presetLabels[preset] || '30 Hari Terakhir');
+            // Muat data langsung untuk preset instan
+            loadMonitoringData();
+        }
+    }
+
+    async function loadMonitoringData() {
+        const refreshBtn = document.getElementById('refreshBtn');
+        const refreshIcon = document.getElementById('refreshIcon');
+        
+        // Ambil nilai filter
+        const preset = document.getElementById('filterPreset').value;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+
+        // Mulai animasi loading
+        refreshBtn.disabled = true;
+        refreshIcon.classList.add('animate-spin');
+
+        try {
+            // Bangun URL dengan parameter query
+            let url = "{% url 'monitoring_chart_api' %}?preset=" + preset;
+            if (preset === 'custom') {
+                if (!startDate || !endDate) {
+                    showToast("Masukkan tanggal mulai dan selesai kustom!", "warning");
+                    return;
+                }
+                url += "&start_date=" + startDate + "&end_date=" + endDate;
+            }
+
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("Gagal mengambil data dari API.");
+            
+            const data = await response.json();
+            
+            // 1. Update Kartu Statistik Ringkasan
+            updateSummaryCards(data.summary);
+
+            // 2. Render Ulang Grafik
+            renderDailyActivityChart(data.daily_labels, data.daily_data);
+            renderStatusDistributionChart(data.status_labels, data.status_data);
+            renderMethodDistributionChart(data.method_labels, data.method_data);
+            renderHourlyActivityChart(data.hour_labels, data.hour_data);
+            renderModalityDistributionChart(data.modality_labels, data.modality_data);
+
+            showToast("Statistik monitoring diperbarui!", 'success');
+        } catch (error) {
+            console.error(error);
+            showToast("Gagal memperbarui grafik: " + error.message, 'error');
+        } finally {
+            // Berhentikan animasi loading
+            refreshBtn.disabled = false;
+            refreshIcon.classList.remove('animate-spin');
+        }
+    }
+
+    function updateSummaryCards(summary) {
+        document.getElementById('statTotalLogs').innerText = summary.total_logs.toLocaleString('id-ID');
+        document.getElementById('statLogsToday').innerText = summary.logs_today.toLocaleString('id-ID');
+        document.getElementById('statActiveWorklists').innerText = summary.active_worklist.toLocaleString('id-ID');
+        document.getElementById('statActiveSubtext').innerText = `${summary.total_worklist.toLocaleString('id-ID')} total terdaftar dalam interval`;
+
+        // Kalkulasi Success Rate
+        if (summary.total_logs > 0) {
+            const successRate = (summary.success_count / summary.total_logs) * 100;
+            document.getElementById('statSuccessRate').innerText = `${successRate.toFixed(1)}%`;
+            document.getElementById('statSuccessSubtext').innerText = `${summary.success_count.toLocaleString('id-ID')} dari ${summary.total_logs.toLocaleString('id-ID')} logs berhasil`;
+            
+            // Set warna badge indicator
+            const badge = document.getElementById('statSuccessBadge');
+            badge.className = 'w-1.5 h-1.5 rounded-full';
+            if (successRate >= 95) {
+                badge.classList.add('bg-emerald-500');
+            } else if (successRate >= 80) {
+                badge.classList.add('bg-amber-500');
+            } else {
+                badge.classList.add('bg-red-500');
+            }
+        } else {
+            document.getElementById('statSuccessRate').innerText = '0.0%';
+            document.getElementById('statSuccessSubtext').innerText = 'Belum ada log aktivitas';
+        }
+    }
+
+    // --- CHART CREATION FUNCTIONS ---
+
+    function renderDailyActivityChart(labels, dataPoints) {
+        if (dailyChartInstance) dailyChartInstance.destroy();
+
+        const ctx = document.getElementById('dailyActivityChart').getContext('2d');
+        
+        // Buat gradien background biru untuk Line Chart
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, 'rgba(37, 99, 235, 0.25)');
+        gradient.addColorStop(1, 'rgba(37, 99, 235, 0.00)');
+
+        dailyChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Jumlah Request',
+                    data: dataPoints,
+                    borderColor: '#2563eb',
+                    borderWidth: 3,
+                    pointBackgroundColor: '#2563eb',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 6,
+                    tension: 0.35,
+                    fill: true,
+                    backgroundColor: gradient
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        padding: 12,
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleFont: { family: 'Inter', size: 12, weight: 'bold' },
+                        bodyFont: { family: 'Inter', size: 12 },
+                        cornerRadius: 12,
+                        boxPadding: 6
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 10, weight: '600' }, color: '#94a3b8' }
+                    },
+                    y: {
+                        grid: { color: '#f1f5f9' },
+                        ticks: { font: { family: 'Inter', size: 10, weight: '600' }, color: '#94a3b8' },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    function renderStatusDistributionChart(labels, dataPoints) {
+        if (statusChartInstance) statusChartInstance.destroy();
+
+        const ctx = document.getElementById('statusDistributionChart').getContext('2d');
+
+        // Harmonisasi warna berdasarkan status
+        // Berhasil -> Emerald, Gagal -> Red, Duplikat -> Amber, Dihapus -> Slate, Updated -> Blue/Indigo
+        const colorPalette = labels.map(status => {
+            if (status === 'Berhasil') return '#10b981';
+            if (status === 'Gagal') return '#ef4444';
+            if (status === 'Duplikat') return '#f59e0b';
+            if (status === 'Dihapus') return '#64748b';
+            if (status === 'Updated') return '#3b82f6';
+            return '#8b5cf6'; // Default purple
+        });
+
+        statusChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: dataPoints,
+                    backgroundColor: colorPalette,
+                    borderWidth: 4,
+                    borderColor: '#ffffff',
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        padding: 12,
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        cornerRadius: 12,
+                        bodyFont: { family: 'Inter', size: 12 }
+                    }
+                },
+                cutout: '72%'
+            }
+        });
+
+        // Bangun custom legend di bagian bawah
+        const legendContainer = document.getElementById('statusLegendContainer');
+        legendContainer.innerHTML = '';
+        labels.forEach((label, idx) => {
+            const count = dataPoints[idx];
+            const color = colorPalette[idx];
+            
+            const legendItem = document.createElement('div');
+            legendItem.className = 'flex items-center gap-1.5';
+            legendItem.innerHTML = `
+                <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${color}"></span>
+                <span>${label} (${count})</span>
+            `;
+            legendContainer.appendChild(legendItem);
+        });
+    }
+
+    function renderMethodDistributionChart(labels, dataPoints) {
+        if (methodChartInstance) methodChartInstance.destroy();
+
+        const ctx = document.getElementById('methodDistributionChart').getContext('2d');
+
+        // Palette modern untuk HTTP Methods
+        // POST -> Indigo, GET -> Blue, PUT -> Violet, DELETE -> Rose
+        const colorPalette = labels.map(method => {
+            if (method === 'POST') return '#4f46e5';
+            if (method === 'GET') return '#06b6d4';
+            if (method === 'PUT') return '#8b5cf6';
+            if (method === 'DELETE') return '#f43f5e';
+            return '#10b981';
+        });
+
+        methodChartInstance = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: dataPoints,
+                    backgroundColor: colorPalette,
+                    borderWidth: 3,
+                    borderColor: '#ffffff',
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        padding: 12,
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        cornerRadius: 12,
+                        bodyFont: { family: 'Inter', size: 12 }
+                    }
+                }
+            }
+        });
+
+        // Bangun custom legend di bagian bawah
+        const legendContainer = document.getElementById('methodLegendContainer');
+        legendContainer.innerHTML = '';
+        labels.forEach((label, idx) => {
+            const count = dataPoints[idx];
+            const color = colorPalette[idx];
+            
+            const legendItem = document.createElement('div');
+            legendItem.className = 'flex items-center gap-1.5';
+            legendItem.innerHTML = `
+                <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${color}"></span>
+                <span>${label} (${count})</span>
+            `;
+            legendContainer.appendChild(legendItem);
+        });
+    }
+
+    function renderHourlyActivityChart(labels, dataPoints) {
+        if (hourlyChartInstance) hourlyChartInstance.destroy();
+
+        const ctx = document.getElementById('hourlyActivityChart').getContext('2d');
+
+        // Gradien ungu-indigo untuk Bar Chart
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, '#6366f1');
+        gradient.addColorStop(1, '#818cf8');
+
+        hourlyChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: dataPoints,
+                    backgroundColor: gradient,
+                    borderRadius: 8,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        padding: 12,
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleFont: { family: 'Inter', size: 12, weight: 'bold' },
+                        bodyFont: { family: 'Inter', size: 12 },
+                        cornerRadius: 12,
+                        boxPadding: 6
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 9, weight: '600' }, color: '#94a3b8' }
+                    },
+                    y: {
+                        grid: { color: '#f1f5f9' },
+                        ticks: { font: { family: 'Inter', size: 10, weight: '600' }, color: '#94a3b8' },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    function renderModalityDistributionChart(labels, dataPoints) {
+        if (modalityChartInstance) modalityChartInstance.destroy();
+
+        const ctx = document.getElementById('modalityDistributionChart').getContext('2d');
+
+        // Gradien cyan-blue horizontal
+        const gradient = ctx.createLinearGradient(0, 0, 400, 0);
+        gradient.addColorStop(0, '#06b6d4');
+        gradient.addColorStop(1, '#3b82f6');
+
+        modalityChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: dataPoints,
+                    backgroundColor: gradient,
+                    borderRadius: 10,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                indexAxis: 'y', // Set horizontal bar
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        padding: 12,
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleFont: { family: 'Inter', size: 12, weight: 'bold' },
+                        bodyFont: { family: 'Inter', size: 12 },
+                        cornerRadius: 12,
+                        boxPadding: 6
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#f1f5f9' },
+                        ticks: { font: { family: 'Inter', size: 10, weight: '600' }, color: '#94a3b8' },
+                        beginAtZero: true
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 11, weight: '700' }, color: '#64748b' }
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

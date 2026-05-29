@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from bridge.views import api_docs_page_view, api_logs_page_view, api_management_view, check_db_health, configuration_view, create_worklist_api, dashboard_view, database_setup_page, fix_folder_permissions, health_check_api, login_view, logout_view, profile_view, run_database_setup, test_db_api, test_orthanc_connection, worklist_detail_api, worklist_page_view, worklist_history_view, check_orthanc_study_api, check_worklist_file_api
+from bridge.views import api_docs_page_view, api_logs_page_view, api_management_view, check_db_health, configuration_view, create_worklist_api, dashboard_view, database_setup_page, fix_folder_permissions, health_check_api, login_view, logout_view, profile_view, run_database_setup, test_db_api, test_orthanc_connection, worklist_detail_api, worklist_page_view, worklist_history_view, check_orthanc_study_api, check_worklist_file_api, user_guide_page_view, monitoring_view, monitoring_chart_api, dicom_scanner_view, dicom_scan_api, dicom_verify_api, dicom_register_api, dicom_delete_api, dicom_router_view, all_studies_view, orthanc_studies_api, orthanc_study_detail_api, dicom_transfer_api
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -9,10 +9,22 @@ urlpatterns = [
     path('logout/', logout_view, name='logout'),
     path('profile/', profile_view, name='profile_page'),
     path('worklist/', worklist_page_view, name='worklist_page'),
+    path('monitoring/', monitoring_view, name='monitoring_page'),
     path('api-logs/', api_logs_page_view, name='api_logs_page'),
     path('api-docs/', api_docs_page_view, name='api_docs_page'),
     path('api-management/', api_management_view, name='api_management'),
     path('configuration/', configuration_view, name='configuration_page'),
+    path('user-guide/', user_guide_page_view, name='user_guide_page'),
+    path('dicom-scanner/', dicom_scanner_view, name='dicom_scanner_page'),
+    path('dicom-scanner/scan', dicom_scan_api, name='dicom_scan_api'),
+    path('dicom-scanner/verify', dicom_verify_api, name='dicom_verify_api'),
+    path('dicom-scanner/register', dicom_register_api, name='dicom_register_api'),
+    path('dicom-scanner/delete', dicom_delete_api, name='dicom_delete_api'),
+    path('dicom-router/', dicom_router_view, name='dicom_router_page'),
+    path('all-studies/', all_studies_view, name='all_studies_page'),
+    path('api/orthanc-studies/', orthanc_studies_api, name='orthanc_studies_api'),
+    path('api/orthanc-studies/<str:study_id>/', orthanc_study_detail_api, name='orthanc_study_detail_api'),
+    path('api/dicom-transfer/', dicom_transfer_api, name='dicom_transfer_api'),
     path('configuration/test-orthanc', test_orthanc_connection, name='test_orthanc'),
     path('configuration/fix-permissions', fix_folder_permissions, name='fix_permissions'),
     path('setup-database/', database_setup_page, name='database_setup_page'),
@@ -25,6 +37,7 @@ urlpatterns = [
     path('api/setup-database', run_database_setup, name='run_database_setup'),
     path('api/check-db', check_db_health, name='check_db_health'),
     path('api/test-db', test_db_api, name='test_db_api'),
+    path('api/monitoring-chart/', monitoring_chart_api, name='monitoring_chart_api'),
 ]
 
 handler404 = 'bridge.views.error_404_view'

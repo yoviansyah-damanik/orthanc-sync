@@ -55,3 +55,17 @@ Mengecek apakah file `.wl` (DICOM Worklist) tersedia secara fisik di folder peny
 
 Mengecek status database dan izin tulis folder worklist.
 
+## Webhooks
+
+Jika parameter `webhook_url` disediakan dalam payload request (atau dikonfigurasi pada API Key), sistem akan mengirimkan HTTP POST callback setelah transaksi selesai (berhasil/gagal).
+
+### HTTP Basic Authentication
+Webhook dikirimkan dengan standar **HTTP Basic Authentication** yang terenkripsi dan aman:
+- **HTTP Basic Auth Header**: Kredensial dikirimkan sebagai Authorization header standar (`Authorization: Basic <base64>`) untuk menjaga keamanan data credential Anda.
+- **JSON Payload Body**: Bersih dari plaintext credential (aman dari risiko logging pihak ketiga).
+
+Metode penyediaan kredensial:
+1. **Dynamic Payload**: Menyertakan field `webhook_username` dan `webhook_password` pada body POST `/api/worklist`.
+2. **Preconfigured API Key**: Menyimpan kredensial langsung di menu Manajemen Akses API.
+
+

@@ -1,9 +1,16 @@
 import os
 import json
 import requests
+import urllib3
 import secrets
+import socket
+import ipaddress
+import concurrent.futures
 from datetime import datetime, timedelta
 from functools import wraps
+
+# Abaikan warning SSL InsecureRequestWarning agar log konsol tetap bersih
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
@@ -20,8 +27,10 @@ from django.conf import settings
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import generate_uid, ImplicitVRLittleEndian
 from pydicom.sequence import Sequence
+from pynetdicom import AE
+from pynetdicom.sop_class import Verification
 
-from .models import APIKey, SystemConfig, WorklistLog, Worklist
+from .models import APIKey, SystemConfig, WorklistLog, Worklist, DicomDevice
 
 def get_worklist_dir():
     return SystemConfig.get_val('WORKLIST_DIR', 'C:/Orthanc/Worklists')
@@ -154,8 +163,148 @@ def api_logs_page_view(request):
     return render(request, 'api_logs.html', {'logs': logs})
 
 @login_required
+def monitoring_view(request):
+    # Render halaman monitoring dengan grafik event aplikasi terintegrasi
+    return render(request, 'monitoring.html')
+
+@login_required
+def monitoring_chart_api(request):
+    """Endpoint JSON yang menyediakan semua data grafik monitoring secara terpusat dengan filter interval tanggal."""
+    import datetime
+    from django.db.models import Count
+
+    logs = WorklistLog.objects.all()
+    worklists = Worklist.objects.all()
+
+    # --- Ambil Parameter Filter ---
+    preset = request.GET.get('preset', '30d')
+    start_str = request.GET.get('start_date')
+    end_str = request.GET.get('end_date')
+
+    # Default date range
+    today = timezone.now().date()
+    start_date = today - timedelta(days=29) # Default 30 hari terakhir
+    end_date = today
+
+    if preset == 'today':
+        start_date = today
+        end_date = today
+    elif preset == '7d':
+        start_date = today - timedelta(days=6)
+        end_date = today
+    elif preset == '30d':
+        start_date = today - timedelta(days=29)
+        end_date = today
+    elif preset == '90d':
+        start_date = today - timedelta(days=89)
+        end_date = today
+    elif preset == 'custom' and start_str and end_str:
+        try:
+            start_date = datetime.datetime.strptime(start_str, '%Y-%m-%d').date()
+            end_date = datetime.datetime.strptime(end_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    # Proteksi: pastikan start_date tidak mendahului end_date
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+
+    # Filter querysets berdasarkan rentang tanggal
+    # Gunakan timezone-aware datetime range (created_at__range) untuk menghindari pemanggilan CONVERT_TZ MySQL
+    from django.utils.timezone import make_aware
+    start_dt = make_aware(datetime.datetime.combine(start_date, datetime.time.min))
+    end_dt = make_aware(datetime.datetime.combine(end_date, datetime.time.max))
+
+    logs_filtered = logs.filter(created_at__range=[start_dt, end_dt])
+    worklists_filtered = worklists.filter(created_at__range=[start_dt, end_dt])
+
+    # --- 1. Aktivitas Harian ---
+    # Kelompokkan di sisi Python untuk menghindari ketergantungan pada tabel timezone MySQL
+    daily_logs = logs_filtered.values_list('created_at', flat=True)
+    
+    date_map = {}
+    for dt in daily_logs:
+        if dt:
+            local_dt = dt.astimezone(timezone.get_current_timezone())
+            d = local_dt.date()
+            date_map[d] = date_map.get(d, 0) + 1
+
+    # Hitung jumlah hari di antara rentang tanggal yang dipilih
+    days_diff = (end_date - start_date).days
+    daily_labels, daily_data = [], []
+    for i in range(days_diff + 1):
+        d = start_date + timedelta(days=i)
+        daily_labels.append(d.strftime('%d %b'))
+        daily_data.append(date_map.get(d, 0))
+
+    # --- 2. Distribusi Status ---
+    status_qs = logs_filtered.values('status').annotate(count=Count('id')).order_by('-count')
+    status_labels = [s['status'] for s in status_qs]
+    status_data   = [s['count'] for s in status_qs]
+
+    # --- 3. Distribusi Method HTTP ---
+    method_qs = logs_filtered.values('method').annotate(count=Count('id')).order_by('-count')
+    method_labels = [m['method'] for m in method_qs]
+    method_data   = [m['count'] for m in method_qs]
+
+    # --- 4. Top Modality ---
+    modality_qs = (
+        worklists_filtered.exclude(modality='')
+        .values('modality').annotate(count=Count('id')).order_by('-count')[:8]
+    )
+    modality_labels = [m['modality'] for m in modality_qs]
+    modality_data   = [m['count'] for m in modality_qs]
+
+    # --- 5. Distribusi Per Jam ---
+    all_created_at = logs_filtered.values_list('created_at', flat=True)
+    hour_map = {}
+    for dt in all_created_at:
+        if dt:
+            local_dt = dt.astimezone(timezone.get_current_timezone())
+            h = local_dt.hour
+            hour_map[h] = hour_map.get(h, 0) + 1
+
+    hour_labels = [f"{h:02d}:00" for h in range(24)]
+    hour_data   = [hour_map.get(h, 0) for h in range(24)]
+
+    # --- 6. Statistik ringkasan dalam interval yang dipilih ---
+    # Hitung logs hari ini secara aman menggunakan range datetime hari ini
+    today_start = make_aware(datetime.datetime.combine(today, datetime.time.min))
+    today_end = make_aware(datetime.datetime.combine(today, datetime.time.max))
+    logs_today_count = logs.filter(created_at__range=[today_start, today_end]).count()
+
+    summary = {
+        'total_logs':      logs_filtered.count(),
+        'logs_today':      logs_today_count,
+        'success_count':   logs_filtered.filter(status__in=['Berhasil', 'Updated']).count(),
+        'failed_count':    logs_filtered.filter(status='Gagal').count(),
+        'active_worklist': worklists.filter(is_active=True).count(), # Tetap gunakan real-time global active count
+        'total_worklist':  worklists.count(), # Tetap gunakan real-time global total
+    }
+
+    return JsonResponse({
+        'summary':         summary,
+        'daily_labels':    daily_labels,
+        'daily_data':      daily_data,
+        'status_labels':   status_labels,
+        'status_data':     status_data,
+        'method_labels':   method_labels,
+        'method_data':     method_data,
+        'modality_labels': modality_labels,
+        'modality_data':   modality_data,
+        'hour_labels':     hour_labels,
+        'hour_data':       hour_data,
+    })
+
+
+@login_required
 def api_docs_page_view(request):
     return render(request, 'api_docs.html')
+
+@login_required
+def user_guide_page_view(request):
+    # Render halaman petunjuk penggunaan aplikasi untuk operator klinis
+    return render(request, 'user_guide.html')
 
 @login_required
 def api_management_view(request):
@@ -164,7 +313,14 @@ def api_management_view(request):
         if action == 'create':
             name = request.POST.get('name')
             webhook_url = request.POST.get('webhook_url')
-            APIKey.objects.create(name=name, webhook_url=webhook_url)
+            webhook_username = request.POST.get('webhook_username') or None
+            webhook_password = request.POST.get('webhook_password') or None
+            APIKey.objects.create(
+                name=name,
+                webhook_url=webhook_url,
+                webhook_username=webhook_username,
+                webhook_password=webhook_password
+            )
             messages.success(request, f"API Key untuk '{name}' berhasil dibuat")
         elif action == 'toggle':
             key_id = request.POST.get('key_id')
@@ -174,6 +330,79 @@ def api_management_view(request):
         elif action == 'delete':
             key_id = request.POST.get('key_id')
             APIKey.objects.get(id=key_id).delete()
+        elif action == 'update':
+            key_id = request.POST.get('key_id')
+            try:
+                key_obj = APIKey.objects.get(id=key_id)
+                key_obj.name = request.POST.get('name')
+                key_obj.webhook_url = request.POST.get('webhook_url') or None
+                
+                # Logika update username & password
+                new_username = request.POST.get('webhook_username') or None
+                new_password = request.POST.get('webhook_password')
+                
+                key_obj.webhook_username = new_username
+                if not new_username:
+                    key_obj.webhook_password = None
+                elif new_password: # Hanya update password jika diisi nilai baru
+                    key_obj.webhook_password = new_password
+                
+                key_obj.save()
+                messages.success(request, f"API Key untuk '{key_obj.name}' berhasil diperbarui")
+            except APIKey.DoesNotExist:
+                messages.error(request, "API Key tidak ditemukan")
+        elif action == 'test_webhook':
+            key_id = request.POST.get('key_id')
+            try:
+                key_obj = APIKey.objects.get(id=key_id)
+                if not key_obj.webhook_url:
+                    return JsonResponse({"success": False, "message": "URL Webhook belum diatur untuk API Key ini."})
+                
+                # Kirim data testing ke webhook menggunakan Basic Auth jika tersedia
+                wh_auth = None
+                wh_user = None
+                wh_pass = None
+                if key_obj.webhook_username:
+                    wh_user = key_obj.webhook_username
+                    wh_pass = key_obj.webhook_password or ''
+                    wh_auth = (wh_user, wh_pass)
+                
+                payload = {
+                    "accession_number": "TEST-123456",
+                    "status": "Test",
+                    "message": "Uji koneksi (test hit) dari Orthanc Bridge berhasil."
+                }
+                
+                response = requests.post(
+                    key_obj.webhook_url,
+                    json=payload,
+                    auth=wh_auth,
+                    verify=False,
+                    timeout=5
+                )
+                
+                if 200 <= response.status_code < 300:
+                    return JsonResponse({
+                        "success": True,
+                        "message": f"Koneksi webhook berhasil! Status Code: {response.status_code}"
+                    })
+                else:
+                    return JsonResponse({
+                        "success": False,
+                        "message": f"Webhook merespon dengan status {response.status_code}. Response: {response.text[:100]}"
+                    })
+            except APIKey.DoesNotExist:
+                return JsonResponse({"success": False, "message": "API Key tidak ditemukan."})
+            except requests.exceptions.RequestException as re_err:
+                return JsonResponse({
+                    "success": False,
+                    "message": f"Koneksi ke Webhook gagal/timeout: {str(re_err)}"
+                })
+            except Exception as ex:
+                return JsonResponse({
+                    "success": False,
+                    "message": f"Terjadi kesalahan: {str(ex)}"
+                })
             
         return redirect('api_management')
 
@@ -353,11 +582,28 @@ def create_worklist_api(request):
         # Trigger Webhook jika disediakan
         if webhook_url:
             try:
+                # Prioritaskan Basic Auth dari payload input, fallback ke database API Key
+                wh_auth = None
+                wh_user = None
+                wh_pass = None
+                p_user = data.get('webhook_username') if isinstance(data, dict) else None
+                p_pass = data.get('webhook_password') if isinstance(data, dict) else None
+                
+                if p_user:
+                    wh_user = p_user
+                    wh_pass = p_pass or ''
+                elif hasattr(request, 'api_key') and request.api_key.webhook_username:
+                    wh_user = request.api_key.webhook_username
+                    wh_pass = request.api_key.webhook_password or ''
+                
+                if wh_user:
+                    wh_auth = (wh_user, wh_pass)
+                
                 requests.post(webhook_url, json={
                     "accession_number": accession_number,
                     "status": final_status,
                     "message": f"Worklist berhasil {'diupdate' if is_update else 'dibuat'}"
-                }, timeout=5)
+                }, auth=wh_auth, verify=False, timeout=5)
             except Exception as w_e:
                 print(f"Gagal mengirim webhook sukses: {w_e}")
 
@@ -387,11 +633,28 @@ def create_worklist_api(request):
         webhook_url = data.get('webhook_url') if 'data' in locals() and isinstance(data, dict) else None
         if webhook_url:
             try:
+                # Prioritaskan Basic Auth dari payload input, fallback ke database API Key
+                wh_auth = None
+                wh_user = None
+                wh_pass = None
+                p_user = data.get('webhook_username') if isinstance(data, dict) else None
+                p_pass = data.get('webhook_password') if isinstance(data, dict) else None
+                
+                if p_user:
+                    wh_user = p_user
+                    wh_pass = p_pass or ''
+                elif hasattr(request, 'api_key') and request.api_key.webhook_username:
+                    wh_user = request.api_key.webhook_username
+                    wh_pass = request.api_key.webhook_password or ''
+                
+                if wh_user:
+                    wh_auth = (wh_user, wh_pass)
+                
                 requests.post(webhook_url, json={
                     "accession_number": acc_num,
                     "status": "Gagal",
                     "message": str(e)
-                }, timeout=5)
+                }, auth=wh_auth, verify=False, timeout=5)
             except Exception as w_e:
                 print(f"Gagal mengirim webhook error: {w_e}")
                 
@@ -888,6 +1151,645 @@ def check_orthanc_study_api(request, accession_number):
         
     except Exception as e:
         return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+# --- ALL STUDIES ---
+
+@login_required
+def all_studies_view(request):
+    """Render halaman daftar seluruh study dari Orthanc."""
+    orthanc_url = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+    devices = DicomDevice.objects.all()
+    return render(request, 'all_studies.html', {
+        'orthanc_url': orthanc_url,
+        'devices': devices
+    })
+
+@login_required
+def orthanc_viewer_url_api(request):
+    """
+    API AJAX: Mendeteksi plugin viewer Orthanc yang terinstall dan
+    mengembalikan URL viewer yang tepat untuk suatu study.
+    """
+    study_id = request.GET.get('study_id', '')
+    url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+    user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+    pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+
+    if not study_id:
+        return JsonResponse({'success': False, 'message': 'study_id diperlukan'}, status=400)
+
+    try:
+        # Ambil daftar plugin yang terinstall di Orthanc
+        plugins_resp = requests.get(
+            f"{url.rstrip('/')}/plugins",
+            auth=(user, pw),
+            timeout=5
+        )
+        installed_plugins = plugins_resp.json() if plugins_resp.status_code == 200 else []
+
+        clean_url = url.rstrip('/')
+
+        # Urutan prioritas deteksi plugin viewer berdasarkan yang paling umum
+        # Stone Web Viewer (resmi & modern)
+        if 'stone-webviewer' in installed_plugins:
+            viewer_url = f"{clean_url}/stone-webviewer/index.html?study={study_id}"
+        # Osimis Web Viewer
+        elif 'osimis-web-viewer' in installed_plugins:
+            viewer_url = f"{clean_url}/osimis-viewer/app/index.html?study={study_id}"
+        # Orthanc Web Viewer (legacy)
+        elif 'web-viewer' in installed_plugins:
+            viewer_url = f"{clean_url}/web-viewer/app/index.html?studyId={study_id}"
+        # Fallback: gunakan interface Orthanc Explorer langsung
+        else:
+            viewer_url = f"{clean_url}/app/explorer.html#study?uuid={study_id}"
+
+        return JsonResponse({
+            'success': True,
+            'viewer_url': viewer_url,
+            'installed_plugins': installed_plugins,
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@login_required
+def orthanc_studies_api(request):
+    """
+    API AJAX: Mengambil daftar seluruh study dari Orthanc.
+    Mendukung parameter ?search= untuk filter sisi server.
+    """
+    url    = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+    user   = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+    pw     = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+    search = request.GET.get('search', '').strip()
+
+    try:
+        # Gunakan /tools/find agar hasil lebih terstruktur
+        query_payload = {
+            "Level": "Study",
+            "Expand": True,
+            "Query": {}
+        }
+        if search:
+            # Coba cocokkan dengan berbagai field utama
+            query_payload["Query"] = {"PatientName": f"*{search}*"}
+
+        r = requests.post(
+            f"{url.rstrip('/')}/tools/find",
+            auth=(user, pw),
+            json=query_payload,
+            timeout=10
+        )
+
+        if r.status_code != 200:
+            return JsonResponse({"success": False, "message": f"Orthanc merespon {r.status_code}"}, status=502)
+
+        raw_studies = r.json()
+        studies = []
+        for s in raw_studies:
+            tags   = s.get('MainDicomTags', {})
+            p_tags = s.get('PatientMainDicomTags', {})
+
+            # Format tanggal YYYYMMDD → DD-MM-YYYY
+            raw_date = tags.get('StudyDate', '')
+            if raw_date and len(raw_date) == 8:
+                fmt_date = f"{raw_date[6:8]}-{raw_date[4:6]}-{raw_date[:4]}"
+            else:
+                fmt_date = raw_date or '-'
+
+            # Hitung jumlah series dan instances dari metadata Orthanc
+            series_ids = s.get('Series', [])
+            series_count = len(series_ids)
+
+            modalities_raw = tags.get('ModalitiesInStudy', '') or tags.get('Modality', '')
+            if isinstance(modalities_raw, list):
+                modalities = modalities_raw
+            elif modalities_raw:
+                modalities = [m.strip() for m in modalities_raw.replace('\\', ',').split(',') if m.strip()]
+            else:
+                modalities = []
+
+            # Fallback 1: Coba ambil modality dari series pertama jika kosong
+            if not modalities and series_ids:
+                try:
+                    first_series_id = series_ids[0]
+                    ser_resp = requests.get(
+                        f"{url.rstrip('/')}/series/{first_series_id}",
+                        auth=(user, pw),
+                        timeout=2
+                    )
+                    if ser_resp.status_code == 200:
+                        ser_tags = ser_resp.json().get('MainDicomTags', {})
+                        ser_mod = ser_tags.get('Modality', '')
+                        if ser_mod:
+                            modalities = [ser_mod]
+                except Exception:
+                    pass
+
+            # Fallback 2: Tebak dari Accession Number atau Description jika masih kosong
+            if not modalities:
+                acc = tags.get('AccessionNumber', '').upper()
+                desc = tags.get('StudyDescription', '').upper()
+                if acc.startswith('US') or 'USG' in desc or 'ULTRASOUND' in desc or 'ULTRASONOGRAPHY' in desc:
+                    modalities = ['US']
+                elif acc.startswith('CT') or 'CT' in desc:
+                    modalities = ['CT']
+                elif acc.startswith('MR') or 'MRI' in desc:
+                    modalities = ['MR']
+                elif acc.startswith('CR') or acc.startswith('DR') or 'XRAY' in desc or 'RONTGEN' in desc or 'ROENTGEN' in desc:
+                    modalities = ['CR']
+
+            studies.append({
+                "study_id"         : s.get('ID', '-'),
+                "patient_name"     : p_tags.get('PatientName', tags.get('PatientName', '-')).replace('^', ' ').strip(),
+                "patient_id"       : p_tags.get('PatientID', tags.get('PatientID', '-')),
+                "study_date"       : fmt_date,
+                "study_description": tags.get('StudyDescription', '-'),
+                "modality"         : modalities,
+                "accession_number" : tags.get('AccessionNumber', '-'),
+                "referring_physician": (tags.get('RequestingPhysician', '') or tags.get('ReferringPhysicianName', '') or '-').replace('^', ' ').strip() or '-',
+                "series_count"     : series_count,
+                "study_instance_uid": tags.get('StudyInstanceUID', '-'),
+            })
+
+        # Urutkan berdasarkan tanggal terbaru (raw date utk sorting)
+        studies.sort(key=lambda x: x.get('study_date', ''), reverse=True)
+
+        return JsonResponse({"success": True, "studies": studies, "total": len(studies)})
+
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+@login_required
+def orthanc_study_detail_api(request, study_id):
+    """
+    API AJAX: Mengambil detail lengkap satu study dari Orthanc berdasarkan Orthanc Study ID.
+    Termasuk seluruh series dan jumlah instances masing-masing.
+    """
+    url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+    user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+    pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+
+    try:
+        # Detail study
+        s_resp = requests.get(f"{url.rstrip('/')}/studies/{study_id}", auth=(user, pw), timeout=5)
+        if s_resp.status_code != 200:
+            return JsonResponse({"success": False, "message": "Study tidak ditemukan"}, status=404)
+        s_info = s_resp.json()
+
+        tags   = s_info.get('MainDicomTags', {})
+        p_tags = s_info.get('PatientMainDicomTags', {})
+
+        # Ambil detail series
+        sr_resp = requests.get(f"{url.rstrip('/')}/studies/{study_id}/series", auth=(user, pw), timeout=5)
+        series_list = []
+        total_instances = 0
+        if sr_resp.status_code == 200:
+            for sr in sr_resp.json():
+                s_tags = sr.get('MainDicomTags', {})
+                inst_ids = sr.get('Instances', [])
+                total_instances += len(inst_ids)
+                series_list.append({
+                    "series_id"         : sr.get('ID'),
+                    "series_number"     : s_tags.get('SeriesNumber', '-'),
+                    "series_description": s_tags.get('SeriesDescription', '-'),
+                    "modality"          : s_tags.get('Modality', '-'),
+                    "instances_count"   : len(inst_ids),
+                    "series_instance_uid": s_tags.get('SeriesInstanceUID', '-'),
+                })
+            series_list.sort(key=lambda x: str(x.get('series_number', '0')))
+
+        raw_date = tags.get('StudyDate', '')
+        fmt_date = f"{raw_date[6:8]}-{raw_date[4:6]}-{raw_date[:4]}" if raw_date and len(raw_date) == 8 else (raw_date or '-')
+        raw_time = tags.get('StudyTime', '')
+        fmt_time = f"{raw_time[:2]}:{raw_time[2:4]}:{raw_time[4:6]}" if raw_time and len(raw_time) >= 6 else (raw_time or '-')
+
+        return JsonResponse({
+            "success"           : True,
+            "study_id"          : study_id,
+            "patient_name"      : p_tags.get('PatientName', '-').replace('^', ' ').strip(),
+            "patient_id"        : p_tags.get('PatientID', '-'),
+            "patient_birth_date": p_tags.get('PatientBirthDate', '-'),
+            "patient_sex"       : p_tags.get('PatientSex', '-'),
+            "study_date"        : fmt_date,
+            "study_time"        : fmt_time,
+            "study_description" : tags.get('StudyDescription', '-'),
+            "accession_number"  : tags.get('AccessionNumber', '-'),
+            "referring_physician": (tags.get('RequestingPhysician', '') or tags.get('ReferringPhysicianName', '') or '-').replace('^', ' ').strip() or '-',
+            "study_instance_uid": tags.get('StudyInstanceUID', '-'),
+            "total_series"      : len(series_list),
+            "total_instances"   : total_instances,
+            "series"            : series_list,
+        })
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def dicom_transfer_api(request):
+    """
+    API AJAX: Mengirimkan study dari Orthanc local ke node DICOM tujuan (C-STORE).
+    """
+    try:
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            data = request.POST
+
+        study_id = data.get('study_id')
+        device_id = data.get('device_id')
+
+        if not study_id or not device_id:
+            return JsonResponse({"success": False, "message": "Study ID dan Device ID wajib disertakan."}, status=400)
+
+        # 1. Cari data DicomDevice dari database
+        try:
+            device = DicomDevice.objects.get(id=device_id)
+        except DicomDevice.DoesNotExist:
+            return JsonResponse({"success": False, "message": "Perangkat DICOM tidak ditemukan di database."}, status=404)
+
+        # 2. Ambil kredensial & URL Orthanc lokal
+        url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+        user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+        pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+        clean_url = url.rstrip('/')
+
+        # 3. Daftarkan/Perbarui remote modality di Orthanc dinamis via REST API
+        modality_symbolic_name = f"device_{device.id.hex}"
+        
+        modality_payload = {
+            "AET": device.ae_title,
+            "Host": device.host,
+            "Port": int(device.port),
+            "Manufacturer": "Generic",
+            "AllowEcho": True,
+            "AllowStore": True
+        }
+
+        put_resp = requests.put(
+            f"{clean_url}/modalities/{modality_symbolic_name}",
+            auth=(user, pw),
+            json=modality_payload,
+            timeout=10
+        )
+
+        if put_resp.status_code not in (200, 201):
+            return JsonResponse({
+                "success": False,
+                "message": f"Gagal meregistrasikan node tujuan di Orthanc: {put_resp.text}"
+            }, status=500)
+
+        # 4. Kirim perintah C-STORE push ke modality tersebut
+        store_payload = [study_id]
+        
+        post_resp = requests.post(
+            f"{clean_url}/modalities/{modality_symbolic_name}/store",
+            auth=(user, pw),
+            json=store_payload,
+            timeout=120
+        )
+
+        if post_resp.status_code != 200:
+            return JsonResponse({
+                "success": False,
+                "message": f"Gagal melakukan transfer DICOM: {post_resp.text}"
+            }, status=500)
+
+        store_result = post_resp.json()
+        failed_count = store_result.get('FailedInstancesCount', 0)
+        success_count = store_result.get('InstancesCount', 0) - failed_count
+
+        if failed_count > 0:
+            return JsonResponse({
+                "success": False,
+                "message": f"Transfer selesai dengan error: {failed_count} instance gagal dikirim."
+            })
+
+        return JsonResponse({
+            "success": True,
+            "message": f"Koneksi berhasil! {success_count} file DICOM berhasil dikirim ke {device.name} ({device.ae_title})."
+        })
+
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+# Helper untuk mendapatkan local IP server
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('10.254.254.254', 1))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = '127.0.0.1'
+    finally:
+        s.close()
+    return ip
+
+# Helper untuk mendapatkan saran subnet (/24)
+def get_suggested_subnet():
+    try:
+        local_ip = get_local_ip()
+        parts = local_ip.split('.')
+        if len(parts) == 4:
+            return f"{parts[0]}.{parts[1]}.{parts[2]}"
+    except Exception:
+        pass
+    return "192.168.1"
+
+# Helper untuk mengecek koneksi port TCP
+def check_host_port(ip, port, timeout_sec):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout_sec)
+    try:
+        s.connect((ip, port))
+        s.close()
+        return (ip, port, True)
+    except Exception:
+        return (ip, port, False)
+
+# Helper untuk mengirim DICOM C-ECHO
+def verify_dicom_connection(host, port, calling_aet="ORTHANC_BRIDGE", called_aet="ANY-SCP", timeout=1.0):
+    ae = AE(ae_title=calling_aet)
+    ae.add_requested_context(Verification)
+    ae.connection_timeout = timeout
+    ae.acse_timeout = timeout
+    ae.network_timeout = timeout
+    ae.dimse_timeout = timeout
+    assoc = ae.associate(host, port, ae_title=called_aet)
+    
+    remote_aet = None
+    if hasattr(assoc, 'acceptor') and hasattr(assoc.acceptor, 'ae_title'):
+        remote_aet = assoc.acceptor.ae_title
+        if remote_aet:
+            if isinstance(remote_aet, bytes):
+                try:
+                    remote_aet = remote_aet.decode('utf-8')
+                except Exception:
+                    pass
+            remote_aet = str(remote_aet).strip()
+
+    if assoc.is_established:
+        try:
+            status = assoc.send_c_echo()
+            assoc.release()
+            if status and status.Status == 0x0000:
+                return True, "C-ECHO Sukses", remote_aet
+            else:
+                return False, f"C-ECHO Gagal (Status: {status.Status})", remote_aet
+        except Exception as e:
+            return False, f"C-ECHO Error: {str(e)}", remote_aet
+    else:
+        return False, "Koneksi Ditolak (Asosiasi Ditolak - Cek AE Title)", remote_aet
+
+# View untuk menampilkan halaman DICOM scanner
+@login_required
+def dicom_scanner_view(request):
+    devices = DicomDevice.objects.all()
+    suggested_subnet = get_suggested_subnet()
+    calling_aet = SystemConfig.get_val('DICOM_CALLING_AET', 'ORTHANC_BRIDGE')
+    return render(request, 'dicom_scanner.html', {
+        'devices': devices,
+        'suggested_subnet': suggested_subnet,
+        'calling_aet': calling_aet
+    })
+
+# API untuk scan subnet jaringan
+@csrf_exempt
+@login_required
+@require_http_methods(["POST"])
+def dicom_scan_api(request):
+    try:
+        # Parsing data request
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            data = request.POST
+
+        subnet = str(data.get('subnet', '')).strip()
+        ports_str = str(data.get('ports', '104,11112,4242')).strip()
+        timeout_ms = int(data.get('timeout', '200'))
+
+        # Parse daftar port
+        ports = []
+        for p in ports_str.split(','):
+            try:
+                ports.append(int(p.strip()))
+            except ValueError:
+                pass
+        if not ports:
+            ports = [104, 11112, 4242]
+
+        timeout_sec = timeout_ms / 1000.0
+
+        # Validasi format subnet (X.X.X)
+        octets = subnet.split('.')
+        if len(octets) != 3 or not all(o.isdigit() and 0 <= int(o) <= 255 for o in octets):
+            return JsonResponse({"success": False, "message": "Format subnet tidak valid. Harus X.X.X (misal: 192.168.1)"})
+
+        # Susun daftar target IP & Port
+        targets = []
+        if subnet.startswith("127.0."):
+            # Jika memindai localhost/loopback, batasi hanya ke 127.0.0.1 untuk mencegah 254 duplikasi palsu
+            for port in ports:
+                targets.append(("127.0.0.1", port))
+        else:
+            for i in range(1, 255):
+                ip = f"{subnet}.{i}"
+                for port in ports:
+                    targets.append((ip, port))
+
+        results = []
+        calling_aet = SystemConfig.get_val('DICOM_CALLING_AET', 'ORTHANC_BRIDGE')
+
+        # Port scanning secara paralel menggunakan ThreadPoolExecutor
+        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+            future_to_target = {
+                executor.submit(check_host_port, ip, port, timeout_sec): (ip, port)
+                for ip, port in targets
+            }
+            for future in concurrent.futures.as_completed(future_to_target):
+                ip, port = future_to_target[future]
+                try:
+                    ip, port, is_open = future.result()
+                    if is_open:
+                        # Jika TCP port terbuka, coba C-ECHO secara singkat
+                        is_dicom, detail, remote_aet = verify_dicom_connection(
+                            ip, port, calling_aet=calling_aet, called_aet="ANY-SCP", timeout=1.0
+                        )
+                        is_registered = DicomDevice.objects.filter(host=ip, port=port).exists()
+                        results.append({
+                            "ip": ip,
+                            "port": port,
+                            "dicom_verified": is_dicom,
+                            "status": "online" if is_dicom else "unverified",
+                            "status_display": "Online" if is_dicom else "TCP Terbuka",
+                            "detail": detail,
+                            "ae_title": remote_aet or "ANY-SCP",
+                            "registered": is_registered
+                        })
+                except Exception:
+                    pass
+
+        # Urutkan berdasarkan octet terakhir IP
+        results.sort(key=lambda x: [int(o) for o in x['ip'].split('.')])
+        return JsonResponse({"success": True, "devices": results})
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+# API untuk verifikasi konektivitas DICOM perangkat
+@csrf_exempt
+@login_required
+@require_http_methods(["POST"])
+def dicom_verify_api(request):
+    try:
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            data = request.POST
+
+        host = data.get('host')
+        port = int(data.get('port', 104))
+        device_id = data.get('device_id')
+        called_aet = data.get('ae_title') or "ANY-SCP"
+        calling_aet = SystemConfig.get_val('DICOM_CALLING_AET', 'ORTHANC_BRIDGE')
+
+        if not host:
+            return JsonResponse({"success": False, "message": "Host IP harus diisi."})
+
+        # Jalankan C-ECHO
+        success, detail, remote_aet = verify_dicom_connection(host, port, calling_aet=calling_aet, called_aet=called_aet, timeout=2.0)
+
+        # Update database jika id perangkat terdaftar disertakan
+        status_val = "online" if success else "offline"
+        if device_id:
+            try:
+                device = DicomDevice.objects.get(id=device_id)
+                device.status = status_val
+                device.last_checked = timezone.now()
+                if success and remote_aet:
+                    device.ae_title = remote_aet
+                device.save()
+            except DicomDevice.DoesNotExist:
+                pass
+
+        return JsonResponse({
+            "success": success,
+            "status": status_val,
+            "status_display": "Online" if success else "Offline",
+            "message": detail
+        })
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+# API untuk mendaftarkan perangkat DICOM baru
+@csrf_exempt
+@login_required
+@require_http_methods(["POST"])
+def dicom_register_api(request):
+    try:
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            data = request.POST
+
+        name = str(data.get('name', '')).strip()
+        host = str(data.get('host', '')).strip()
+        port = int(data.get('port', 104))
+        ae_title = str(data.get('ae_title', '')).strip()
+        description = str(data.get('description', '')).strip()
+
+        if not name or not host:
+            return JsonResponse({"success": False, "message": "Nama dan Host IP wajib diisi."})
+
+        # Cek apakah sudah terdaftar
+        device, created = DicomDevice.objects.get_or_create(
+            host=host,
+            port=port,
+            defaults={
+                'name': name,
+                'ae_title': ae_title,
+                'description': description,
+                'status': 'unverified'
+            }
+        )
+
+        if not created:
+            # Update data jika sudah ada
+            device.name = name
+            device.ae_title = ae_title
+            device.description = description
+            device.save()
+
+        # Jalankan C-ECHO verifikasi secara langsung agar status terupdate
+        calling_aet = SystemConfig.get_val('DICOM_CALLING_AET', 'ORTHANC_BRIDGE')
+        called_aet = ae_title or "ANY-SCP"
+        success, detail, remote_aet = verify_dicom_connection(host, port, calling_aet=calling_aet, called_aet=called_aet, timeout=1.5)
+        
+        if success and remote_aet and not device.ae_title:
+            device.ae_title = remote_aet
+            
+        device.status = "online" if success else "unverified"
+        device.last_checked = timezone.now()
+        device.save()
+
+        msg = "Perangkat DICOM berhasil didaftarkan." if created else "Perangkat DICOM berhasil diperbarui."
+        if success:
+            msg += " Koneksi C-ECHO berhasil."
+        else:
+            msg += f" Namun C-ECHO belum berhasil: {detail}"
+
+        return JsonResponse({
+            "success": True,
+            "message": msg,
+            "device": {
+                "id": str(device.id),
+                "name": device.name,
+                "host": device.host,
+                "port": device.port,
+                "ae_title": device.ae_title,
+                "status": device.status,
+                "status_display": "Online" if device.status == "online" else "Offline" if device.status == "offline" else "Unverified"
+            }
+        })
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+# API untuk menghapus perangkat DICOM
+@csrf_exempt
+@login_required
+@require_http_methods(["POST"])
+def dicom_delete_api(request):
+    try:
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            data = request.POST
+
+        device_id = data.get('id')
+        if not device_id:
+            return JsonResponse({"success": False, "message": "ID perangkat tidak valid."})
+
+        try:
+            device = DicomDevice.objects.get(id=device_id)
+            device.delete()
+            return JsonResponse({"success": True, "message": "Perangkat DICOM berhasil dihapus."})
+        except DicomDevice.DoesNotExist:
+            return JsonResponse({"success": False, "message": "Perangkat tidak ditemukan."})
+
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+# View untuk menampilkan halaman DICOM router
+@login_required
+def dicom_router_view(request):
+    devices = DicomDevice.objects.all()
+    calling_aet = SystemConfig.get_val('DICOM_CALLING_AET', 'ORTHANC_BRIDGE')
+    return render(request, 'dicom_router.html', {
+        'devices': devices,
+        'calling_aet': calling_aet
+    })
 
 def error_404_view(request, exception):
     return render(request, '404.html', status=404)

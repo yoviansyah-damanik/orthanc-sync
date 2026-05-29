@@ -1,0 +1,715 @@
+{% extends 'base.html' %}
+{% block title %}DICOM Scanner | Orthanc Bridge{% endblock %}
+{% block page_title %}DICOM Scanner{% endblock %}
+
+{% block content %}
+<style>
+    /* Animasi radar yang dinamis dan modern */
+    @keyframes radar-sweep {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+    @keyframes pulse-ring {
+        0% {
+            transform: scale(0.7);
+            opacity: 0.6;
+        }
+        100% {
+            transform: scale(2.4);
+            opacity: 0;
+        }
+    }
+    .radar-sweep-effect {
+        background: conic-gradient(from 0deg, rgba(37, 99, 235, 0.15) 0%, rgba(37, 99, 235, 0) 50%, rgba(37, 99, 235, 0) 100%);
+        animation: radar-sweep 4s infinite linear;
+    }
+    .radar-pulse-effect {
+        animation: pulse-ring 3s infinite cubic-bezier(0.215, 0.610, 0.355, 1);
+    }
+    .radar-pulse-effect-delay-1 {
+        animation: pulse-ring 3s infinite 1s cubic-bezier(0.215, 0.610, 0.355, 1);
+    }
+    .radar-pulse-effect-delay-2 {
+        animation: pulse-ring 3s infinite 2s cubic-bezier(0.215, 0.610, 0.355, 1);
+    }
+</style>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+    <!-- Kolom Kiri: Konfigurasi Scan & Animasi Radar -->
+    <div class="xl:col-span-1 space-y-8">
+        <div class="bg-white p-8 rounded-[2rem] card-shadow relative overflow-hidden">
+            <!-- Header Konfigurasi -->
+            <div class="flex items-center gap-3 mb-2 relative z-10">
+                <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                    <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-4v-4m-6 4h2m6 0a9 9 0 110-18 9 9 0 010 18z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-base font-bold text-gray-900">Pemindaian Jaringan</h3>
+            </div>
+            <p class="text-xs text-gray-500 mb-6 relative z-10">Cari dan temukan alat DICOM aktif dalam cluster subnet jaringan lokal Anda secara otomatis.</p>
+
+            <!-- Form Konfigurasi Scan -->
+            <div class="space-y-4 relative z-10">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Target Subnet (Format: X.X.X) *</label>
+                    <input type="text" id="inputSubnet" value="{{ suggested_subnet }}" placeholder="Contoh: 192.168.1"
+                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm border border-transparent focus:border-blue-500/20">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Daftar Port DICOM *</label>
+                    <input type="text" id="inputPorts" value="104, 11112, 4242" placeholder="Pisahkan dengan koma (mis. 104,11112)"
+                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm border border-transparent focus:border-blue-500/20">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Timeout Scan (Milidetik) *</label>
+                    <input type="number" id="inputTimeout" value="200" min="50" max="2000"
+                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm border border-transparent focus:border-blue-500/20">
+                </div>
+
+                <!-- Animasi Visual Scanner -->
+                <div class="flex flex-col items-center justify-center py-8 relative">
+                    <!-- Lingkaran Radar Utama -->
+                    <div class="relative w-44 h-44 rounded-full border-2 border-slate-100 flex items-center justify-center bg-slate-50/50 shadow-inner overflow-hidden">
+                        <!-- Efek Radar Menyapu -->
+                        <div id="radarSweep" class="absolute inset-0 rounded-full radar-sweep-effect hidden"></div>
+
+                        <!-- Lingkaran Konsentris Dalam -->
+                        <div class="absolute w-32 h-32 rounded-full border border-slate-100/80"></div>
+                        <div class="absolute w-20 h-20 rounded-full border border-slate-100/60"></div>
+                        <div class="absolute w-8 h-8 rounded-full border border-slate-100/40"></div>
+
+                        <!-- Garis Axis Penunjuk -->
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <div class="w-full h-px bg-slate-100/80 absolute"></div>
+                            <div class="h-full w-px bg-slate-100/80 absolute"></div>
+                        </div>
+
+                        <!-- Efek Pulse Mengembang saat Scan Aktif -->
+                        <div id="radarPulse1" class="absolute w-12 h-12 rounded-full bg-blue-500/10 radar-pulse-effect hidden"></div>
+                        <div id="radarPulse2" class="absolute w-12 h-12 rounded-full bg-blue-500/10 radar-pulse-effect-delay-1 hidden"></div>
+                        <div id="radarPulse3" class="absolute w-12 h-12 rounded-full bg-blue-500/10 radar-pulse-effect-delay-2 hidden"></div>
+
+                        <!-- Titik Pusat Pulsa -->
+                        <div id="radarCenterDot" class="w-4 h-4 rounded-full bg-slate-400 border-2 border-white shadow transition-all duration-300 relative z-10"></div>
+                    </div>
+
+                    <!-- Label Status di Bawah Radar -->
+                    <span id="labelScanStatus" class="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-4 transition-colors">SIAP MEMINDAI</span>
+                </div>
+
+                <button id="btnStartScan" onclick="startScan()"
+                    class="w-full py-4 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    Mulai Scan Jaringan
+                </button>
+
+                <button id="btnCancelScan" onclick="cancelScan()"
+                    class="w-full py-4 bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-all hidden">
+                    Batalkan Scan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kolom Kanan: Daftar Alat Terdaftar & Hasil Scan -->
+    <div class="xl:col-span-2 space-y-8">
+        <!-- Bagian 1: Alat Terdaftar dalam Sistem -->
+        <div class="bg-white rounded-[2rem] p-8 card-shadow">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-900">Perangkat DICOM Terdaftar</h3>
+                    <p class="text-xs text-gray-500 mt-1">Daftar perangkat DICOM yang aktif digunakan untuk pengiriman/penerimaan data.</p>
+                </div>
+                <span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl" id="badgeRegisteredCount">
+                    {{ devices.count }} Terdaftar
+                </span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" id="tableRegistered">
+                    <thead>
+                        <tr class="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <th class="py-4 px-4">Nama Perangkat</th>
+                            <th class="py-4 px-4">IP Address</th>
+                            <th class="py-4 px-4">Port</th>
+                            <th class="py-4 px-4">AE Title</th>
+                            <th class="py-4 px-4">Status Koneksi</th>
+                            <th class="py-4 px-4 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-50">
+                        {% for device in devices %}
+                        <tr class="group hover:bg-slate-50/50 transition-colors" id="row-device-{{ device.id }}">
+                            <td class="py-4 px-4">
+                                <div class="font-bold text-sm text-gray-800">{{ device.name }}</div>
+                                <div class="text-[10px] text-slate-400 font-medium mt-0.5">{{ device.description|default:"Tidak ada deskripsi" }}</div>
+                            </td>
+                            <td class="py-4 px-4 text-sm font-mono text-slate-600">{{ device.host }}</td>
+                            <td class="py-4 px-4 text-sm font-semibold text-slate-600">{{ device.port }}</td>
+                            <td class="py-4 px-4 text-sm font-mono text-slate-700 font-bold bg-slate-50 px-2 py-0.5 rounded inline-block mt-3">{{ device.ae_title }}</td>
+                            <td class="py-4 px-4 text-xs font-semibold">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-{{ device.id }} 
+                                        {% if device.status == 'online' %}bg-green-500 animate-pulse
+                                        {% elif device.status == 'offline' %}bg-red-500
+                                        {% else %}bg-amber-400{% endif %}">
+                                    </span>
+                                    <span class="status-text-{{ device.id }} text-slate-600">
+                                        {% if device.status == 'online' %}Online
+                                        {% elif device.status == 'offline' %}Offline
+                                        {% else %}Unverified{% endif %}
+                                    </span>
+                                </div>
+                                <span class="text-[9px] text-slate-400 block mt-1 status-time-{{ device.id }}">
+                                    Checked: {{ device.last_checked|date:"d M Y, H:i"|default:"Belum" }}
+                                </span>
+                            </td>
+                            <td class="py-4 px-4 text-right">
+                                <div class="flex items-center justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                                    <!-- Tombol Verifikasi C-ECHO -->
+                                    <button onclick="verifyDevice('{{ device.id }}', '{{ device.host }}', '{{ device.port }}', '{{ device.ae_title }}')"
+                                        class="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 hover:text-blue-700 transition-colors shadow-sm"
+                                        title="Kirim C-ECHO">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                        </svg>
+                                    </button>
+                                    <!-- Tombol Hapus -->
+                                    <button onclick="deleteDevice('{{ device.id }}', '{{ device.name }}')"
+                                        class="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-colors shadow-sm"
+                                        title="Hapus Perangkat">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr id="rowEmptyRegistered">
+                            <td colspan="6" class="py-12 text-center text-sm text-slate-400">
+                                <div class="w-12 h-12 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                    </svg>
+                                </div>
+                                Belum ada perangkat DICOM yang didaftarkan.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Bagian 2: Hasil Scan Jaringan Aktif -->
+        <div id="cardScanResults" class="bg-white rounded-[2rem] p-8 card-shadow transition-all duration-500 overflow-hidden relative">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-900">Hasil Pemindaian Jaringan</h3>
+                    <p class="text-xs text-gray-500 mt-1">Daftar port aktif yang ditemukan di subnet target selama pemindaian.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl hidden" id="badgeDiscoveredCount">
+                        0 Ditemukan
+                    </span>
+                </div>
+            </div>
+
+            <!-- Tabel Hasil Scan -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" id="tableScanResults">
+                    <thead>
+                        <tr class="border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <th class="py-4 px-4">IP Address</th>
+                            <th class="py-4 px-4">Port Terbuka</th>
+                            <th class="py-4 px-4">C-ECHO Status</th>
+                            <th class="py-4 px-4">Keterangan Detil</th>
+                            <th class="py-4 px-4 text-right">Aksi Pendaftaran</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-50" id="tbodyScanResults">
+                        <tr>
+                            <td colspan="5" class="py-12 text-center text-sm text-slate-400" id="scanResultsPlaceholder">
+                                <div class="w-12 h-12 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-3 animate-bounce">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a9 9 0 0112.728 0M12 5.636a13.5 13.5 0 0117.678 0"></path>
+                                    </svg>
+                                </div>
+                                Tekan tombol "Mulai Scan Jaringan" untuk memindai subnet aktif.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Daftarkan / Edit Perangkat DICOM -->
+<div id="modalRegister" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4 transition-all duration-300 opacity-0">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden transform scale-95 transition-all duration-300">
+        <!-- Header Modal -->
+        <div class="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <h3 class="text-base font-bold text-gray-900" id="modalRegisterTitle">Daftarkan Perangkat DICOM</h3>
+            <button onclick="closeRegisterModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Form Body -->
+        <div class="p-8 space-y-4">
+            <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Nama Perangkat *</label>
+                <input type="text" id="regName" placeholder="Contoh: USG Radiologi"
+                    class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm border border-transparent focus:border-blue-500/20">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">IP Address *</label>
+                    <input type="text" id="regHost" readonly
+                        class="w-full px-5 py-3.5 bg-slate-100 text-slate-500 rounded-xl outline-none text-sm border border-transparent">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">DICOM Port *</label>
+                    <input type="number" id="regPort" readonly
+                        class="w-full px-5 py-3.5 bg-slate-100 text-slate-500 rounded-xl outline-none text-sm border border-transparent">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">DICOM AE Title (Called AE) *</label>
+                <input type="text" id="regAeTitle" placeholder="Contoh: WORKLIST_SCP"
+                    class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm border border-transparent focus:border-blue-500/20">
+                <span class="text-[9px] text-slate-400 mt-1 block">Biasanya diperlukan agar server DICOM menerima koneksi.</span>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Deskripsi Singkat</label>
+                <textarea id="regDescription" rows="2" placeholder="Detail ruangan, merk alat, dll."
+                    class="w-full px-5 py-3 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm border border-transparent focus:border-blue-500/20 resize-none"></textarea>
+            </div>
+        </div>
+
+        <!-- Footer Modal -->
+        <div class="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+            <button onclick="closeRegisterModal()" 
+                class="px-5 py-3 border border-slate-200 bg-white rounded-xl text-xs font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">
+                Batal
+            </button>
+            <button onclick="submitRegister()" 
+                class="px-5 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-0.5 transition-all">
+                Simpan Perangkat
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Controller untuk scan pembatalan
+    let scanController = null;
+
+    // Membuka modal pendaftaran perangkat
+    function openRegisterModal(ip, port, aeTitle = 'ANY-SCP') {
+        document.getElementById('regHost').value = ip;
+        document.getElementById('regPort').value = port;
+        document.getElementById('regAeTitle').value = aeTitle === '-' ? 'ANY-SCP' : aeTitle;
+        document.getElementById('regName').value = `Alat DICOM (${ip})`;
+        document.getElementById('regDescription').value = '';
+
+        const modal = document.getElementById('modalRegister');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            modal.querySelector('div').classList.remove('scale-95');
+        }, 10);
+    }
+
+    // Menutup modal pendaftaran perangkat
+    function closeRegisterModal() {
+        const modal = document.getElementById('modalRegister');
+        modal.classList.add('opacity-0');
+        modal.querySelector('div').classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 300);
+    }
+
+    // Mengirimkan form pendaftaran ke backend view
+    async function submitRegister() {
+        const name = document.getElementById('regName').value.trim();
+        const host = document.getElementById('regHost').value;
+        const port = document.getElementById('regPort').value;
+        const aeTitle = document.getElementById('regAeTitle').value.trim();
+        const description = document.getElementById('regDescription').value.trim();
+
+        if (!name) {
+            showToast('Nama perangkat wajib diisi.', 'error');
+            return;
+        }
+
+        try {
+            const resp = await fetch('{% url "dicom_register_api" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ name, host, port, ae_title: aeTitle, description })
+            });
+
+            const res = await resp.json();
+            if (res.success) {
+                showToast(res.message, 'success');
+                closeRegisterModal();
+                
+                // Refresh halaman agar tabel terupdate dengan item baru
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(res.message || 'Gagal menyimpan perangkat', 'error');
+            }
+        } catch (err) {
+            showToast('Terjadi kesalahan jaringan.', 'error');
+        }
+    }
+
+    // Memulai proses scanning
+    async function startScan() {
+        const subnet = document.getElementById('inputSubnet').value.trim();
+        const ports = document.getElementById('inputPorts').value.trim();
+        const timeout = document.getElementById('inputTimeout').value;
+
+        if (!subnet) {
+            showToast('Target Subnet wajib diisi.', 'error');
+            return;
+        }
+
+        // Toggle UI ke mode loading/scanning
+        document.getElementById('btnStartScan').classList.add('hidden');
+        document.getElementById('btnCancelScan').classList.remove('hidden');
+
+        const radarSweep = document.getElementById('radarSweep');
+        const radarPulse1 = document.getElementById('radarPulse1');
+        const radarPulse2 = document.getElementById('radarPulse2');
+        const radarPulse3 = document.getElementById('radarPulse3');
+        const centerDot = document.getElementById('radarCenterDot');
+        const labelStatus = document.getElementById('labelScanStatus');
+
+        radarSweep.classList.remove('hidden');
+        radarPulse1.classList.remove('hidden');
+        radarPulse2.classList.remove('hidden');
+        radarPulse3.classList.remove('hidden');
+        centerDot.classList.replace('bg-slate-400', 'bg-blue-600');
+        centerDot.classList.add('animate-ping');
+        labelStatus.textContent = 'SEDANG MEMINDAI...';
+        labelStatus.classList.replace('text-slate-400', 'text-blue-600');
+
+        // Reset tabel hasil scan dengan spinner loading premium
+        const tbody = document.getElementById('tbodyScanResults');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-16 text-center text-sm text-slate-500">
+                    <div class="flex flex-col items-center justify-center gap-4">
+                        <div class="relative w-12 h-12">
+                            <div class="w-12 h-12 rounded-full border-4 border-blue-50 border-t-blue-600 animate-spin"></div>
+                            <div class="w-6 h-6 rounded-full border-4 border-blue-100 border-b-blue-500 animate-spin absolute top-3 left-3" style="animation-direction: reverse;"></div>
+                        </div>
+                        <div class="font-bold text-slate-700">Mencari port terbuka di subnet ${subnet}...</div>
+                        <div class="text-[10px] text-slate-400 tracking-wider uppercase">Proses ini memakan waktu sekitar 3-10 detik</div>
+                    </div>
+                </td>
+            </tr>
+        `;
+
+        scanController = new AbortController();
+
+        try {
+            const resp = await fetch('{% url "dicom_scan_api" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ subnet, ports, timeout }),
+                signal: scanController.signal
+            });
+
+            const res = await resp.json();
+            
+            // Hentikan animasi radar
+            stopRadarUI();
+
+            if (res.success) {
+                renderScanResults(res.devices);
+                if (res.devices.length > 0) {
+                    showToast(`Scan selesai! Menemukan ${res.devices.length} port DICOM aktif.`, 'success');
+                } else {
+                    showToast('Scan selesai. Tidak ada port DICOM aktif terdeteksi.', 'warning');
+                }
+            } else {
+                showToast(res.message || 'Gagal memindai jaringan', 'error');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-12 text-center text-sm text-red-500 font-medium">
+                            Pemindaian gagal: ${res.message || 'Kesalahan sistem'}
+                        </td>
+                    </tr>
+                `;
+            }
+
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                showToast('Pemindaian dibatalkan oleh pengguna.', 'warning');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-12 text-center text-sm text-amber-500 font-medium">
+                            Pemindaian dibatalkan.
+                        </td>
+                    </tr>
+                `;
+            } else {
+                showToast('Kesalahan koneksi jaringan.', 'error');
+            }
+            stopRadarUI();
+        }
+    }
+
+    // Membatalkan pemindaian aktif
+    function cancelScan() {
+        if (scanController) {
+            scanController.abort();
+            scanController = null;
+        }
+    }
+
+    // Reset status UI radar ke kondisi default/idle
+    function stopRadarUI() {
+        document.getElementById('btnStartScan').classList.remove('hidden');
+        document.getElementById('btnCancelScan').classList.add('hidden');
+
+        const radarSweep = document.getElementById('radarSweep');
+        const radarPulse1 = document.getElementById('radarPulse1');
+        const radarPulse2 = document.getElementById('radarPulse2');
+        const radarPulse3 = document.getElementById('radarPulse3');
+        const centerDot = document.getElementById('radarCenterDot');
+        const labelStatus = document.getElementById('labelScanStatus');
+
+        radarSweep.classList.add('hidden');
+        radarPulse1.classList.add('hidden');
+        radarPulse2.classList.add('hidden');
+        radarPulse3.classList.add('hidden');
+        centerDot.className = 'w-4 h-4 rounded-full bg-slate-400 border-2 border-white shadow transition-all duration-300 relative z-10';
+        labelStatus.textContent = 'SIAP MEMINDAI';
+        labelStatus.classList.replace('text-blue-600', 'text-slate-400');
+    }
+
+    // Merender baris hasil pemindaian di tabel bawah
+    function renderScanResults(devices) {
+        const tbody = document.getElementById('tbodyScanResults');
+        const badgeCount = document.getElementById('badgeDiscoveredCount');
+
+        if (devices.length === 0) {
+            badgeCount.classList.add('hidden');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="py-12 text-center text-sm text-slate-400">
+                        Tidak ada port aktif yang merespon pada subnet ini. Pastikan port DICOM dan koneksi kabel sudah benar.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Hitung total IP unik yang ditemukan
+        const uniqueIps = [...new Set(devices.map(d => d.ip))];
+        badgeCount.textContent = `${uniqueIps.length} Host Ditemukan`;
+        badgeCount.classList.remove('hidden');
+
+        // Kelompokkan perangkat berdasarkan IP
+        const grouped = {};
+        devices.forEach(dev => {
+            if (!grouped[dev.ip]) {
+                grouped[dev.ip] = [];
+            }
+            grouped[dev.ip].push(dev);
+        });
+
+        tbody.innerHTML = Object.keys(grouped).map(ip => {
+            const ipDevices = grouped[ip];
+            
+            // Buat baris port untuk IP ini
+            const portsHTML = ipDevices.map(dev => {
+                const statusClass = dev.dicom_verified ? 'bg-green-500 animate-pulse' : 'bg-amber-400';
+                const statusLabel = dev.dicom_verified ? 'Online' : 'Port Terbuka';
+                
+                let btnAction = '';
+                if (dev.registered) {
+                    btnAction = `
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 rounded-xl text-xs font-semibold">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Terdaftar
+                        </span>
+                    `;
+                } else {
+                    btnAction = `
+                        <button onclick="openRegisterModal('${dev.ip}', '${dev.port}', '${dev.ae_title}')"
+                            class="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl shadow hover:bg-blue-700 active:translate-y-px transition-all">
+                            Daftarkan
+                        </button>
+                    `;
+                }
+
+                return `
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-b border-slate-100/50 last:border-0">
+                        <!-- Port & Status -->
+                        <div class="flex items-center gap-4 min-w-[180px]">
+                            <span class="px-2.5 py-1 bg-slate-100 text-slate-700 font-mono font-bold rounded-lg text-xs">Port ${dev.port}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full ${statusClass}"></span>
+                                <span class="text-slate-600 font-semibold">${statusLabel}</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Keterangan Detil -->
+                        <div class="text-slate-500 text-xs flex-1 truncate max-w-md" title="${dev.detail || '-'}">
+                            ${dev.detail || '-'}
+                        </div>
+                        
+                        <!-- Tombol Aksi -->
+                        <div class="text-right min-w-[120px]">
+                            ${btnAction}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <tr class="hover:bg-slate-50/20 transition-colors border-b border-slate-100">
+                    <td class="py-5 px-4 text-sm font-bold text-gray-800 font-mono align-top w-48">${ip}</td>
+                    <td class="py-3 px-4" colspan="4">
+                        <div class="space-y-1">
+                            ${portsHTML}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // Melakukan verifikasi perangkat terdaftar secara real-time via AJAX C-ECHO
+    async function verifyDevice(id, host, port, aeTitle) {
+        const dot = document.querySelector(`.status-dot-${id}`);
+        const txt = document.querySelector(`.status-text-${id}`);
+        const time = document.querySelector(`.status-time-${id}`);
+
+        dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-slate-400 animate-spin`;
+        txt.textContent = 'Mengecek...';
+
+        try {
+            const resp = await fetch('{% url "dicom_verify_api" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ host, port, ae_title: aeTitle, device_id: id })
+            });
+
+            const res = await resp.json();
+            
+            dot.classList.remove('animate-spin');
+            if (res.success) {
+                dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-green-500 animate-pulse`;
+                txt.textContent = 'Online';
+                showToast(`C-ECHO berhasil ke ${host}:${port}!`, 'success');
+            } else {
+                dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-red-500`;
+                txt.textContent = 'Offline';
+                showToast(`C-ECHO gagal ke ${host}:${port}: ${res.message}`, 'error');
+            }
+            
+            // Set waktu periksa baru
+            const now = new Date();
+            const timeStr = `${String(now.getDate()).padStart(2, '0')} ${now.toLocaleString('id-ID', { month: 'short' })} ${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            time.textContent = `Checked: ${timeStr}`;
+
+        } catch (err) {
+            dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-red-500`;
+            txt.textContent = 'Offline';
+            showToast('Gagal memverifikasi perangkat.', 'error');
+        }
+    }
+
+    // Menghapus perangkat terdaftar dari sistem
+    async function deleteDevice(id, name) {
+        if (!confirm(`Apakah Anda yakin ingin menghapus perangkat DICOM "${name}" dari sistem?`)) {
+            return;
+        }
+
+        try {
+            const resp = await fetch('{% url "dicom_delete_api" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ id })
+            });
+
+            const res = await resp.json();
+            if (res.success) {
+                showToast(res.message, 'success');
+                
+                // Animasi hapus baris tabel
+                const row = document.getElementById(`row-device-${id}`);
+                row.classList.add('opacity-0', 'transition-all', 'duration-500');
+                setTimeout(() => {
+                    row.remove();
+                    
+                    // Update counter badge
+                    const countBadge = document.getElementById('badgeRegisteredCount');
+                    const curCount = parseInt(countBadge.textContent) || 0;
+                    if (curCount > 1) {
+                        countBadge.textContent = `${curCount - 1} Terdaftar`;
+                    } else {
+                        countBadge.textContent = '0 Terdaftar';
+                        
+                        // Render empty state if no rows left
+                        const tbody = document.querySelector('#tableRegistered tbody');
+                        tbody.innerHTML = `
+                            <tr id="rowEmptyRegistered">
+                                <td colspan="6" class="py-12 text-center text-sm text-slate-400">
+                                    <div class="w-12 h-12 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-3">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                        </svg>
+                                    </div>
+                                    Belum ada perangkat DICOM yang didaftarkan.
+                                </td>
+                            </tr>
+                        `;
+                    }
+                }, 500);
+            } else {
+                showToast(res.message || 'Gagal menghapus perangkat', 'error');
+            }
+        } catch (err) {
+            showToast('Kesalahan koneksi jaringan.', 'error');
+        }
+    }
+</script>
+{% endblock %}

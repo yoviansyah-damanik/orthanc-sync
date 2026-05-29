@@ -4,31 +4,86 @@
 
 {% block content %}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-    <!-- Generate New Key -->
+    <!-- Form Buat API Key Baru -->
     <div class="lg:col-span-1">
         <div class="bg-white p-8 rounded-[2rem] card-shadow sticky top-24">
-            <h3 class="text-lg font-bold text-gray-900 mb-2">Buat API Key Baru</h3>
-            <p class="text-xs text-gray-500 mb-6">Gunakan API Key untuk mengizinkan sistem luar memanggil endpoint worklist.</p>
-            
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-base font-bold text-gray-900">Buat API Key Baru</h3>
+            </div>
+            <p class="text-xs text-gray-500 mb-6">Izinkan sistem luar memanggil endpoint worklist dengan API Key terautentikasi.</p>
+
             <form method="POST" class="space-y-4">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="create">
+
+                <!-- Nama Aplikasi -->
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Nama Aplikasi / Sistem</label>
-                    <input type="text" name="name" required placeholder="Contoh: SIMRS Pusat" class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm">
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Nama Aplikasi / Sistem *</label>
+                    <input type="text" name="name" required placeholder="Contoh: SIMRS Pusat"
+                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm">
                 </div>
+
+                <!-- Divider Webhook -->
+                <div class="pt-2 pb-1">
+                    <div class="flex items-center gap-3">
+                        <div class="h-px flex-1 bg-slate-100"></div>
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Konfigurasi Webhook</span>
+                        <div class="h-px flex-1 bg-slate-100"></div>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-2 text-center">Opsional — URL callback yang dipanggil setelah transaksi</p>
+                </div>
+
+                <!-- Webhook URL -->
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Default Webhook URL (Opsional)</label>
-                    <input type="url" name="webhook_url" placeholder="https://sistem.com/callback" class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm">
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Default Webhook URL</label>
+                    <input type="url" name="webhook_url" placeholder="https://sistem.com/webhook/callback"
+                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm">
                 </div>
-                <button type="submit" class="w-full py-4 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-0.5 transition-all">
-                    Generate Key
+
+                <!-- Webhook Credentials (Basic Auth) -->
+                <div class="bg-slate-50 rounded-2xl p-4 space-y-3 border border-slate-100">
+                    <div class="flex items-center gap-2 mb-1">
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                        <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Basic Auth Callback</span>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Username</label>
+                        <input type="text" name="webhook_username" placeholder="username (opsional)"
+                            autocomplete="new-password"
+                            class="w-full px-4 py-3 bg-white rounded-xl focus:ring-4 focus:ring-blue-500/10 outline-none text-sm transition-all shadow-sm border border-slate-100">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Password</label>
+                        <div class="relative">
+                            <input type="password" id="webhookPasswordInput" name="webhook_password" placeholder="password (opsional)"
+                                autocomplete="new-password"
+                                class="w-full px-4 py-3 bg-white rounded-xl focus:ring-4 focus:ring-blue-500/10 outline-none text-sm transition-all shadow-sm border border-slate-100 pr-10">
+                            <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                                <svg id="eyeIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit"
+                    class="w-full py-4 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 transition-all">
+                    Generate API Key
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- Key List (Redesigned as Grid) -->
+    <!-- Daftar API Key -->
     <div class="lg:col-span-2">
         <div class="flex items-center justify-between mb-6">
             <h3 class="text-xl font-bold text-gray-900">Kunci Akses Terdaftar</h3>
@@ -42,7 +97,7 @@
                 <div class="absolute top-8 right-8">
                     {% if key.is_active %}
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-green-50 text-green-600">
-                        <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse shadow-sm shadow-green-500/50"></span> Active
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse shadow-sm shadow-green-500/50"></span>Active
                     </span>
                     {% else %}
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-400">
@@ -51,7 +106,7 @@
                     {% endif %}
                 </div>
 
-                <!-- Icon & Name -->
+                <!-- Icon & Nama -->
                 <div class="flex items-center space-x-4 mb-6">
                     <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
@@ -62,8 +117,8 @@
                     </div>
                 </div>
 
-                <!-- API Key Section -->
-                <div class="bg-slate-50 rounded-2xl p-5 mb-6">
+                <!-- Access Token -->
+                <div class="bg-slate-50 rounded-2xl p-5 mb-4">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Access Token</span>
                         <button onclick="copyToClipboard('{{ key.key }}')" class="text-blue-500 hover:text-blue-700 transition-colors">
@@ -75,36 +130,66 @@
                     </code>
                 </div>
 
-                <!-- Webhook URL -->
+                <!-- Webhook URL & Credentials -->
                 {% if key.webhook_url %}
-                <div class="flex items-start space-x-2 mb-6">
-                    <svg class="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
-                    <div class="text-[10px] text-gray-500 font-medium truncate" title="{{ key.webhook_url }}">
-                        {{ key.webhook_url }}
+                <div class="space-y-2 mb-4">
+                    <div class="flex items-start space-x-2">
+                        <svg class="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                        <span class="text-[10px] text-gray-500 font-medium truncate flex-1" title="{{ key.webhook_url }}">{{ key.webhook_url }}</span>
                     </div>
+                    {% if key.webhook_username %}
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        <span class="text-[10px] text-gray-500 font-medium">{{ key.webhook_username }}</span>
+                        <span class="text-[10px] text-gray-400">/ ••••••</span>
+                        <span class="ml-auto text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Basic Auth</span>
+                    </div>
+                    {% endif %}
                 </div>
                 {% else %}
-                <div class="mb-6 h-[15px]"></div>
+                <div class="mb-4 h-[30px]"></div>
                 {% endif %}
 
                 <!-- Actions -->
-                <div class="flex items-center justify-between pt-6">
-                    <form method="POST" class="inline">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="toggle">
-                        <input type="hidden" name="key_id" value="{{ key.id }}">
-                        <button type="submit" class="text-xs font-bold {% if key.is_active %}text-amber-600 hover:text-amber-800{% else %}text-green-600 hover:text-green-800{% endif %} transition-colors">
-                            {% if key.is_active %}Disable Access{% else %}Enable Access{% endif %}
+                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                    <div class="flex items-center gap-3">
+                        <form method="POST" class="inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="toggle">
+                            <input type="hidden" name="key_id" value="{{ key.id }}">
+                            <button type="submit" class="text-xs font-bold {% if key.is_active %}text-amber-600 hover:text-amber-800{% else %}text-green-600 hover:text-green-800{% endif %} transition-colors">
+                                {% if key.is_active %}Disable Access{% else %}Enable Access{% endif %}
+                            </button>
+                        </form>
+
+                        {% if key.webhook_url %}
+                        <button type="button" onclick="testWebhook('{{ key.id }}')" id="btn-test-{{ key.id }}" class="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            Uji Webhook
                         </button>
-                    </form>
-                    <form method="POST" class="inline" onsubmit="return confirm('Hapus API Key ini secara permanen?')">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="delete">
-                        <input type="hidden" name="key_id" value="{{ key.id }}">
-                        <button type="submit" class="w-8 h-8 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        {% endif %}
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button type="button" 
+                                onclick="openEditModal('{{ key.id }}', '{{ key.name }}', '{{ key.webhook_url|default_if_none:'' }}', '{{ key.webhook_username|default_if_none:'' }}')"
+                                class="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-50 hover:text-blue-600 rounded-lg transition-all"
+                                title="Ubah Data API User">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                            </svg>
                         </button>
-                    </form>
+                        <form method="POST" class="inline" onsubmit="return confirm('Hapus API Key ini secara permanen?')">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="key_id" value="{{ key.id }}">
+                            <button type="submit" class="w-8 h-8 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
             {% empty %}
@@ -118,6 +203,90 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Edit API Key (Premium Glassmorphism Style) -->
+<div id="editModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-all duration-300">
+    <div id="editModalContent" class="bg-white rounded-[2rem] max-w-md w-full p-8 mx-4 card-shadow transform scale-95 transition-all duration-300">
+        <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">Ubah Data API User</h3>
+                    <p class="text-[10px] text-gray-500 font-medium">Perbarui kredensial & webhook sistem</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeEditModal()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form method="POST" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" id="editKeyId" name="key_id">
+
+            <!-- Nama Aplikasi -->
+            <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Nama Aplikasi / Sistem *</label>
+                <input type="text" id="editName" name="name" required placeholder="Contoh: SIMRS Pusat"
+                    class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm border border-slate-100">
+            </div>
+
+            <!-- Webhook URL -->
+            <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Default Webhook URL</label>
+                <input type="url" id="editWebhookUrl" name="webhook_url" placeholder="https://sistem.com/webhook/callback"
+                    class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all shadow-sm border border-slate-100">
+            </div>
+
+            <!-- Webhook Credentials (Basic Auth) -->
+            <div class="bg-slate-50 rounded-2xl p-4 space-y-3 border border-slate-100">
+                <div class="flex items-center gap-2 mb-1">
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                    <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Basic Auth Callback</span>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Username</label>
+                    <input type="text" id="editWebhookUsername" name="webhook_username" placeholder="username (opsional)"
+                        autocomplete="new-password"
+                        class="w-full px-4 py-3 bg-white rounded-xl focus:ring-4 focus:ring-blue-500/10 outline-none text-sm transition-all shadow-sm border border-slate-100">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Password</label>
+                    <div class="relative">
+                        <input type="password" id="editWebhookPassword" name="webhook_password" placeholder="Isi hanya untuk mengubah password"
+                            autocomplete="new-password"
+                            class="w-full px-4 py-3 bg-white rounded-xl focus:ring-4 focus:ring-blue-500/10 outline-none text-sm transition-all shadow-sm border border-slate-100 pr-10">
+                        <button type="button" onclick="toggleEditPasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                            <svg id="editEyeIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit/Cancel buttons -->
+            <div class="grid grid-cols-2 gap-4 pt-4">
+                <button type="button" onclick="closeEditModal()"
+                    class="py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-widest rounded-xl transition-all text-center">
+                    Batal
+                </button>
+                <button type="submit"
+                    class="py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-500/10 active:translate-y-0.5 transition-all text-center">
+                    Simpan
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -126,6 +295,114 @@
         navigator.clipboard.writeText(text).then(() => {
             showToast('API Key berhasil disalin ke clipboard');
         });
+    }
+
+    // Toggle visibilitas password input
+    function togglePasswordVisibility() {
+        const input = document.getElementById('webhookPasswordInput');
+        const icon = document.getElementById('eyeIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.innerHTML = `
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>`;
+        } else {
+            input.type = 'password';
+            icon.innerHTML = `
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>`;
+        }
+    }
+
+    // Fungsi Uji Webhook dengan loading spinner dan toast
+    function testWebhook(keyId) {
+        const btn = document.getElementById(`btn-test-${keyId}`);
+        const originalHtml = btn.innerHTML;
+        
+        btn.disabled = true;
+        btn.innerHTML = `
+            <svg class="animate-spin w-3.5 h-3.5 text-blue-600 mr-1" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Menguji...
+        `;
+        
+        const formData = new FormData();
+        formData.append('action', 'test_webhook');
+        formData.append('key_id', keyId);
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch('', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Sistem merespon dengan status error');
+            }
+            return response.json();
+        })
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            if (data.success) {
+                showToast(data.message, 'success');
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            showToast('Uji webhook gagal: ' + err.message, 'error');
+        });
+    }
+
+    // Modal Edit API Key
+    function openEditModal(id, name, webhookUrl, webhookUsername) {
+        document.getElementById('editKeyId').value = id;
+        document.getElementById('editName').value = name;
+        document.getElementById('editWebhookUrl').value = webhookUrl;
+        document.getElementById('editWebhookUsername').value = webhookUsername;
+        document.getElementById('editWebhookPassword').value = ''; // Reset password input to blank
+        
+        const modal = document.getElementById('editModal');
+        const modalContent = document.getElementById('editModalContent');
+        
+        modal.classList.remove('pointer-events-none');
+        modal.style.opacity = '1';
+        modalContent.classList.remove('scale-95');
+        modalContent.classList.add('scale-100');
+    }
+
+    function closeEditModal() {
+        const modal = document.getElementById('editModal');
+        const modalContent = document.getElementById('editModalContent');
+        
+        modal.classList.add('pointer-events-none');
+        modal.style.opacity = '0';
+        modalContent.classList.remove('scale-100');
+        modalContent.classList.add('scale-95');
+    }
+    
+    // Toggle visibilitas edit password
+    function toggleEditPasswordVisibility() {
+        const input = document.getElementById('editWebhookPassword');
+        const icon = document.getElementById('editEyeIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.innerHTML = `
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>`;
+        } else {
+            input.type = 'password';
+            icon.innerHTML = `
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>`;
+        }
     }
 </script>
 {% endblock %}
