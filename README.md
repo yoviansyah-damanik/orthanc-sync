@@ -35,3 +35,20 @@ Run Django system check to verify setup integrity:
 ```bash
 python manage.py check
 ```
+
+---
+
+## Developer & Creator Profile
+
+<a href="https://instagram.com/yoviansyah_damanik" target="_blank">
+  <img src="https://img.shields.io/badge/Instagram-@yoviansyah__damanik-E4405F?style=for-the-badge&logo=instagram&logoColor=white" alt="Instagram Profile"/>
+</a>
+<a href="tel:081222778197">
+  <img src="https://img.shields.io/badge/WhatsApp-0812--2277--8197-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp Contact"/>
+</a>
+
+### **Yoviansyah Rizki Pratama**
+- **Role**: Creator & Fullstack DICOM Integration Engineer
+- **Phone**: `+62 812-2277-8197`
+- **Instagram**: [`@yoviansyah_damanik`](https://instagram.com/yoviansyah_damanik)
+
