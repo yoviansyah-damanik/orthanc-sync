@@ -24,6 +24,7 @@ Orthanc Bridge is a premium web-based integration layer for the Orthanc PACS ser
 ## Detailed Documentation
 
 For a detailed look into each module, refer to the documentation inside the [docs/](file:///d:/WebApps/orthanc-sync/docs) directory:
+
 - [PACS Browser & OHIF Viewer Documentation](file:///d:/WebApps/orthanc-sync/docs/all_studies.md)
 - [DICOM Router & Nodes Documentation](file:///d:/WebApps/orthanc-sync/docs/dicom_router.md)
 - [DICOM Network Scanner Documentation](file:///d:/WebApps/orthanc-sync/docs/dicom_scanner.md)
@@ -32,6 +33,7 @@ For a detailed look into each module, refer to the documentation inside the [doc
 ## Technical Check
 
 Run Django system check to verify setup integrity:
+
 ```bash
 python manage.py check
 ```
@@ -47,8 +49,8 @@ python manage.py check
   <img src="https://img.shields.io/badge/WhatsApp-0812--2277--8197-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp Contact"/>
 </a>
 
-### **Yoviansyah Rizki Pratama**
-- **Role**: Creator & Fullstack DICOM Integration Engineer
+### **Yoviansyah Rizki Pratama, S.Kom**
+
+- **Role**: Full-Stack Developer
 - **Phone**: `+62 812-2277-8197`
 - **Instagram**: [`@yoviansyah_damanik`](https://instagram.com/yoviansyah_damanik)
-
