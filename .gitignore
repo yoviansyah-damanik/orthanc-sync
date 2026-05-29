@@ -10,6 +10,7 @@ db.sqlite3-journal
 # Environment / Secret keys
 .env
 .env.*
+!.env.example
 
 # Virtual Environment
 venv/

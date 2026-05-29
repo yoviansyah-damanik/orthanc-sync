@@ -13,6 +13,189 @@ Orthanc Bridge is a premium web-based integration layer for the Orthanc PACS ser
 - **DICOM Network Scanner**: Parallel multi-port subnet scanner to discover DICOM devices on local networks, pull Called AE Titles, and auto-register them.
 - **Monitoring & API Logs**: Real-time auditing of incoming and outgoing worklist API payloads.
 
+---
+
+## Prasyarat
+
+| Komponen | Versi Minimum | Keterangan |
+|---|---|---|
+| Python | 3.11+ | [python.org](https://python.org) |
+| MySQL / MariaDB | 8.0+ / 10.6+ | Database utama aplikasi |
+| Orthanc PACS | 1.11+ | [orthanc-server.com](https://www.orthanc-server.com) |
+| pip | 23+ | Sudah termasuk dalam Python |
+
+> **Catatan:** Orthanc harus sudah berjalan dan dapat diakses sebelum aplikasi dikonfigurasi.
+
+---
+
+## Instalasi
+
+### 1. Clone Repository
+
+```bash
+git clone https://github.com/yoviansyah-damanik/orthanc-sync.git
+cd orthanc-sync
+```
+
+### 2. Buat Virtual Environment
+
+```bash
+# Windows
+python -m venv venv
+venv\Scripts\activate
+
+# Linux / macOS
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Install Dependensi
+
+```bash
+pip install -r requirements.txt
+```
+
+Paket utama yang akan terinstal:
+
+| Paket | Fungsi |
+|---|---|
+| `django` | Web framework utama |
+| `pymysql` | Koneksi MySQL / MariaDB |
+| `pynetdicom` | Komunikasi DICOM (C-ECHO, C-STORE, C-FIND) |
+| `pydicom` | Parsing file DICOM |
+| `fastapi` + `uvicorn` | API server worklist (berjalan paralel) |
+| `python-dotenv` | Manajemen environment variables |
+| `requests` | HTTP client ke Orthanc REST API |
+
+### 4. Konfigurasi Environment
+
+Buat file `.env` di root project:
+
+```bash
+# Windows
+copy .env.example .env
+
+# Linux / macOS
+cp .env.example .env
+```
+
+Edit `.env` sesuai dengan konfigurasi lokal:
+
+```env
+DEBUG=True
+SECRET_KEY=ganti-dengan-secret-key-yang-kuat
+
+# Database MySQL
+DB_NAME=orthanc_sync
+DB_USER=root
+DB_PASSWORD=password_anda
+DB_HOST=127.0.0.1
+DB_PORT=3306
+
+# Identitas Aplikasi
+APP_NAME=Orthanc Bridge
+HOSPITAL_NAME=Nama Rumah Sakit Anda
+```
+
+> **Catatan:** `SECRET_KEY` dapat dibuat dengan perintah:
+> ```bash
+> python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+> ```
+
+### 5. Buat Database
+
+Buat database kosong di MySQL terlebih dahulu:
+
+```sql
+CREATE DATABASE orthanc_sync CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+### 6. Jalankan Migrasi Database
+
+```bash
+python manage.py migrate
+```
+
+### 7. Buat Akun Administrator
+
+```bash
+python manage.py createsuperuser
+```
+
+Ikuti prompt untuk mengisi username, email (opsional), dan password.
+
+### 8. Generate Watermark Hash (Wajib)
+
+Langkah ini **wajib** dilakukan satu kali setelah instalasi. Tanpa ini, middleware proteksi akan memblokir semua akses.
+
+```bash
+python manage.py generate_watermark_hash
+```
+
+Output yang diharapkan:
+```
+[OK] Watermark hash berhasil disimpan ke .env
+     WATERMARK_HASH=<sha256-hash>
+```
+
+### 9. Kumpulkan Static Files (Produksi)
+
+```bash
+python manage.py collectstatic --noinput
+```
+
+> Langkah ini hanya diperlukan untuk deployment produksi. Development tidak membutuhkan ini.
+
+### 10. Jalankan Aplikasi
+
+```bash
+# Development (akses dari semua IP, port 9123)
+python manage.py runserver 0.0.0.0:9123
+
+# Atau port default Django
+python manage.py runserver
+```
+
+Buka browser dan akses: **http://localhost:9123**
+
+---
+
+## Konfigurasi Orthanc
+
+Setelah login, buka menu **Pengaturan** dan isi:
+
+| Parameter | Contoh Nilai | Keterangan |
+|---|---|---|
+| Orthanc URL | `http://localhost:8042` | URL REST API Orthanc |
+| Orthanc Username | `orthanc` | Default user Orthanc |
+| Orthanc Password | `orthanc` | Default password Orthanc |
+
+---
+
+## Verifikasi Sistem
+
+Jalankan pengecekan integritas Django:
+
+```bash
+python manage.py check
+```
+
+Output yang diharapkan: `System check identified no issues (0 silenced).`
+
+---
+
+## Troubleshooting
+
+| Masalah | Solusi |
+|---|---|
+| `OperationalError: (1049, "Unknown database")` | Pastikan database sudah dibuat di MySQL |
+| `ModuleNotFoundError: No module named 'pynetdicom'` | Jalankan `pip install -r requirements.txt` ulang |
+| Halaman menampilkan **"Lisensi Tidak Valid"** | Jalankan `python manage.py generate_watermark_hash` |
+| Orthanc status **Disconnected** | Periksa URL, username, dan password Orthanc di Pengaturan |
+| Port 9123 sudah digunakan | Ganti port: `python manage.py runserver 0.0.0.0:9124` |
+
+---
+
 ## Project Structure
 
 - `bridge/`: Main Django application containing views, models, APIs, and business logic.
@@ -21,22 +204,16 @@ Orthanc Bridge is a premium web-based integration layer for the Orthanc PACS ser
 - `static/`: Frontend visual assets, scripts, and styling.
 - `templates/`: Django HTML templates with high-performance responsive styling.
 
-## Detailed Documentation
+---
 
-For a detailed look into each module, refer to the documentation inside the [docs/](file:///d:/WebApps/orthanc-sync/docs) directory:
+## Dokumentasi Lengkap
 
-- [PACS Browser & OHIF Viewer Documentation](file:///d:/WebApps/orthanc-sync/docs/all_studies.md)
-- [DICOM Router & Nodes Documentation](file:///d:/WebApps/orthanc-sync/docs/dicom_router.md)
-- [DICOM Network Scanner Documentation](file:///d:/WebApps/orthanc-sync/docs/dicom_scanner.md)
-- [Bridge Web Services API Documentation](file:///d:/WebApps/orthanc-sync/docs/bridge-api.md)
+Lihat direktori [`docs/`](docs/) untuk dokumentasi teknis setiap modul:
 
-## Technical Check
-
-Run Django system check to verify setup integrity:
-
-```bash
-python manage.py check
-```
+- [PACS Browser & OHIF Viewer](docs/all_studies.md)
+- [DICOM Router & Nodes](docs/dicom_router.md)
+- [DICOM Network Scanner](docs/dicom_scanner.md)
+- [Bridge Web Services API](docs/bridge-api.md)
 
 ---
 
