@@ -109,3 +109,94 @@ class DicomDevice(models.Model):
 
     class Meta:
         ordering = ['host', 'port']
+
+
+# ─── 1. AUTO-ROUTING MODELS ───────────────────────────────────────────────
+
+class RoutingRule(models.Model):
+    """Model untuk menyimpan aturan perutean DICOM otomatis"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=150, help_text="Nama aturan perutean")
+    modality = models.CharField(max_length=50, blank=True, default="", help_text="Filter Modality (cth: CT, MR, DX) atau kosongkan untuk semua")
+    patient_id_prefix = models.CharField(max_length=50, blank=True, default="", help_text="Prefiks Patient ID atau kosongkan untuk semua")
+    study_desc_contains = models.CharField(max_length=255, blank=True, default="", help_text="Filter deskripsi studi mengandung teks")
+    target_device = models.ForeignKey(DicomDevice, on_delete=models.CASCADE, related_name="routing_rules", help_text="Node DICOM tujuan perutean")
+    is_active = models.BooleanField(default=True, help_text="Aturan aktif atau tidak")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} -> {self.target_device.name}"
+
+
+class RoutingLog(models.Model):
+    """Model untuk mencatat riwayat perutean otomatis yang dijalankan"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    rule = models.ForeignKey(RoutingRule, on_delete=models.SET_NULL, null=True, blank=True)
+    study_id = models.CharField(max_length=100)
+    patient_name = models.CharField(max_length=255)
+    modality = models.CharField(max_length=50)
+    target_device_name = models.CharField(max_length=150)
+    status = models.CharField(max_length=20, default="Pending") # Success, Failed
+    error_message = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+# ─── 2. SCHEDULED PACS BACKUP MODELS ───────────────────────────────────────
+
+class SyncSchedule(models.Model):
+    """Model untuk menjadwalkan pencadangan dan sinkronisasi otomatis"""
+    FREQUENCY_CHOICES = [
+        ('hourly', 'Setiap Jam'),
+        ('daily', 'Setiap Hari (Tengah Malam)'),
+        ('weekly', 'Setiap Minggu (Hari Minggu)'),
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=150)
+    target_device = models.ForeignKey(DicomDevice, on_delete=models.CASCADE, related_name="sync_schedules")
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='daily')
+    last_run = models.DateTimeField(null=True, blank=True)
+    next_run = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.get_frequency_display()}) -> {self.target_device.name}"
+
+
+class SyncLog(models.Model):
+    """Model untuk riwayat sinkronisasi/pencadangan PACS"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    schedule = models.ForeignKey(SyncSchedule, on_delete=models.SET_NULL, null=True, blank=True)
+    total_studies = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=20) # Success, Failed, Partial
+    error_message = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class TransferLog(models.Model):
+    """Model untuk mencatat riwayat transfer DICOM manual"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    study_id = models.CharField(max_length=100) # ID study di Orthanc
+    patient_name = models.CharField(max_length=255) # Nama pasien
+    patient_id = models.CharField(max_length=100, blank=True, default="") # ID pasien
+    accession_number = models.CharField(max_length=50, blank=True, default="") # Nomor aksesi
+    modality = models.CharField(max_length=50, blank=True, default="") # Modalitas
+    target_device = models.ForeignKey(DicomDevice, on_delete=models.SET_NULL, null=True, blank=True) # Perangkat DICOM tujuan
+    target_device_name = models.CharField(max_length=150) # Nama perangkat tujuan (backup jika terhapus)
+    status = models.CharField(max_length=20, default="Success") # Status transfer (Success / Failed)
+    error_message = models.TextField(blank=True, null=True) # Pesan kesalahan jika gagal
+    created_at = models.DateTimeField(auto_now_add=True) # Waktu pencatatan transfer
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.patient_name} -> {self.target_device_name} ({self.status})"
+
+

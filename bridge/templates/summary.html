@@ -62,7 +62,7 @@
 <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
     <div class="px-10 py-8 flex items-center justify-between">
         <h2 class="text-xl font-bold text-gray-900">Aktivitas Terkini</h2>
-        <a href="{% url 'worklist_page' %}" class="text-sm font-bold text-blue-600 hover:text-blue-800">Lihat Semua →</a>
+        <a href="{% url 'api_logs_page' %}" class="text-sm font-bold text-blue-600 hover:text-blue-800">Lihat Semua →</a>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
@@ -70,7 +70,7 @@
                 <tr class="bg-slate-50/50">
                     <th class="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Timestamp</th>
                     <th class="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Pasien</th>
-                    <th class="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Modality</th>
+                    <th class="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</th>
                     <th class="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                 </tr>
             </thead>
@@ -85,15 +85,29 @@
                         <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{{ log.accession_number }}</div>
                     </td>
                     <td class="px-10 py-5 whitespace-nowrap">
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 uppercase tracking-wider">{{ log.modality }}</span>
-                    </td>
-                    <td class="px-10 py-5 whitespace-nowrap">
-                        {% if log.status == 'Berhasil' %}
-                        <span class="text-green-600 font-black text-[10px] uppercase tracking-widest flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2 shadow-sm shadow-green-500/50"></span> Success</span>
+                        {% if log.method == 'DELETE' %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-red-50 text-red-600 uppercase tracking-wider">{{ log.method }}</span>
+                        {% elif log.method == 'PUT' %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-amber-50 text-amber-600 uppercase tracking-wider">{{ log.method }}</span>
                         {% else %}
-                        <span class="text-red-600 font-black text-[10px] uppercase tracking-widest flex items-center"><span class="w-2 h-2 bg-red-500 rounded-full mr-2 shadow-sm shadow-red-500/50"></span> Failed</span>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-blue-50 text-blue-600 uppercase tracking-wider">{{ log.method }}</span>
                         {% endif %}
                     </td>
+                    <td class="px-10 py-5 whitespace-nowrap">
+                        {% if log.status == 'Berhasil' or log.status == 'Updated' %}
+                        <span class="text-green-600 font-black text-[10px] uppercase tracking-widest flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2 shadow-sm shadow-green-500/50"></span> {{ log.status }}</span>
+                        {% elif log.status == 'Dihapus' %}
+                        <span class="text-slate-500 font-black text-[10px] uppercase tracking-widest flex items-center"><span class="w-2 h-2 bg-slate-400 rounded-full mr-2"></span> {{ log.status }}</span>
+                        {% elif log.status == 'Duplikat' %}
+                        <span class="text-amber-600 font-black text-[10px] uppercase tracking-widest flex items-center"><span class="w-2 h-2 bg-amber-400 rounded-full mr-2"></span> {{ log.status }}</span>
+                        {% else %}
+                        <span class="text-red-600 font-black text-[10px] uppercase tracking-widest flex items-center"><span class="w-2 h-2 bg-red-500 rounded-full mr-2 shadow-sm shadow-red-500/50"></span> {{ log.status }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="px-10 py-10 text-center text-sm font-bold text-slate-400">Belum ada aktivitas tercatat.</td>
                 </tr>
                 {% endfor %}
             </tbody>

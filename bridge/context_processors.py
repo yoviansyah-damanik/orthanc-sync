@@ -2,6 +2,7 @@ import os
 import requests
 from django.utils import timezone
 from django.db import OperationalError
+from django.conf import settings
 from .models import SystemConfig
 
 def orthanc_status(request):
@@ -9,10 +10,19 @@ def orthanc_status(request):
     Context processor untuk mengecek status koneksi Orthanc di setiap halaman.
     Menggunakan cache sederhana agar tidak memperlambat loading.
     """
+    # Tentukan URL logo: gunakan kustom jika ada, fallback ke static default
+    logo_url = None
+    try:
+        custom_logo = SystemConfig.objects.get(key='CUSTOM_LOGO_PATH')
+        logo_url = settings.MEDIA_URL + custom_logo.value
+    except (SystemConfig.DoesNotExist, Exception):
+        pass
+
     context = {
         'app_name': os.getenv('APP_NAME', 'Orthanc Bridge'),
         'hospital_name': os.getenv('HOSPITAL_NAME', 'Rumah Sakit'),
         'current_year': timezone.now().year,
+        'logo_url': logo_url,
     }
 
     if not request.user.is_authenticated:
@@ -94,6 +104,11 @@ def sidebar_data(request):
                     'name': 'DICOM Router',
                     'url': 'dicom_router_page',
                     'icon': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>'
+                },
+                {
+                    'name': 'Scheduled Backup',
+                    'url': 'scheduled_backup_page',
+                    'icon': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
                 },
             ]
         },

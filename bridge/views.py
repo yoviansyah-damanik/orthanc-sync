@@ -30,7 +30,7 @@ from pydicom.sequence import Sequence
 from pynetdicom import AE
 from pynetdicom.sop_class import Verification
 
-from .models import APIKey, SystemConfig, WorklistLog, Worklist, DicomDevice
+from .models import APIKey, SystemConfig, WorklistLog, Worklist, DicomDevice, RoutingRule, RoutingLog, SyncSchedule, SyncLog
 
 def get_worklist_dir():
     return SystemConfig.get_val('WORKLIST_DIR', 'C:/Orthanc/Worklists')
@@ -1784,15 +1784,280 @@ def dicom_delete_api(request):
 # View untuk menampilkan halaman DICOM router
 @login_required
 def dicom_router_view(request):
+    """Halaman utama router DICOM, memuat aturan routing otomatis"""
     devices = DicomDevice.objects.all()
+    rules = RoutingRule.objects.all()
+    routing_logs = RoutingLog.objects.all()[:15]
     calling_aet = SystemConfig.get_val('DICOM_CALLING_AET', 'ORTHANC_BRIDGE')
+    
     return render(request, 'dicom_router.html', {
         'devices': devices,
+        'rules': rules,
+        'routing_logs': routing_logs,
         'calling_aet': calling_aet
     })
+
+# View untuk halaman Scheduled Backup (dipisahkan dari DICOM Router)
+@login_required
+def scheduled_backup_view(request):
+    """Halaman manajemen jadwal backup/sinkronisasi PACS"""
+    devices = DicomDevice.objects.all()
+    schedules = SyncSchedule.objects.all()
+    sync_logs = SyncLog.objects.all()[:15]
+    
+    return render(request, 'scheduled_backup.html', {
+        'devices': devices,
+        'schedules': schedules,
+        'sync_logs': sync_logs,
+    })
+
+
+# ─── API OTOMASI & PERUTEAN DICOM ──────────────────────────────────────────────
+
+@login_required
+@require_http_methods(["POST"])
+def dicom_modify_api(request, study_id):
+    """
+    API AJAX: Memodifikasi tag atau menganonimkan studi DICOM di Orthanc local.
+    """
+    try:
+        data = json.loads(request.body)
+        action_type = data.get('action') # 'anonymize' atau 'modify'
+        
+        url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+        user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+        pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+        clean_url = url.rstrip('/')
+
+        payload = {}
+        if action_type == 'anonymize':
+            # Aturan standard anonimisasi DICOM
+            payload = {
+                "Keep": ["StationName", "SeriesDescription", "ProtocolName"],
+                "DicomVersion": "2021b"
+            }
+            endpoint = f"{clean_url}/studies/{study_id}/anonymize"
+        elif action_type == 'modify':
+            replace_tags = data.get('replace', {})
+            remove_tags = data.get('remove', [])
+            payload = {
+                "Replace": replace_tags,
+                "Remove": remove_tags,
+                "Force": True
+            }
+            endpoint = f"{clean_url}/studies/{study_id}/modify"
+        else:
+            return JsonResponse({"success": False, "message": "Aksi tidak didukung."}, status=400)
+
+        resp = requests.post(endpoint, auth=(user, pw), json=payload, timeout=30)
+        if resp.status_code != 200:
+            return JsonResponse({"success": False, "message": f"Orthanc Error: {resp.text}"}, status=500)
+            
+        result = resp.json()
+        new_study_id = result.get('ID')
+
+        return JsonResponse({
+            "success": True,
+            "message": f"Studi berhasil di-{action_type}! Studi baru tersimpan dengan ID: {new_study_id}",
+            "new_study_id": new_study_id
+        })
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def routing_rules_api(request):
+    """
+    API AJAX: CRUD Aturan Perutean Otomatis (Auto-Routing Rules).
+    """
+    if request.method == "GET":
+        rules = list(RoutingRule.objects.all().values(
+            'id', 'name', 'modality', 'patient_id_prefix', 'study_desc_contains', 'target_device__name', 'is_active'
+        ))
+        return JsonResponse({"success": True, "rules": rules})
+
+    # POST (Create / Toggle / Delete)
+    try:
+        data = json.loads(request.body)
+        action = data.get('action')
+
+        if action == 'create':
+            name = data.get('name')
+            modality = data.get('modality', '').upper().strip()
+            patient_id_prefix = data.get('patient_id_prefix', '').strip()
+            study_desc_contains = data.get('study_desc_contains', '').strip()
+            device_id = data.get('device_id')
+
+            if not name or not device_id:
+                return JsonResponse({"success": False, "message": "Nama dan Node Tujuan wajib diisi."}, status=400)
+
+            device = DicomDevice.objects.get(id=device_id)
+            rule = RoutingRule.objects.create(
+                name=name,
+                modality=modality,
+                patient_id_prefix=patient_id_prefix,
+                study_desc_contains=study_desc_contains,
+                target_device=device
+            )
+            return JsonResponse({"success": True, "message": f"Aturan '{rule.name}' berhasil dibuat!"})
+
+        elif action == 'toggle':
+            rule_id = data.get('rule_id')
+            rule = RoutingRule.objects.get(id=rule_id)
+            rule.is_active = not rule.is_active
+            rule.save()
+            return JsonResponse({"success": True, "message": f"Status aturan '{rule.name}' berhasil diubah."})
+
+        elif action == 'delete':
+            rule_id = data.get('rule_id')
+            rule = RoutingRule.objects.get(id=rule_id)
+            rule.delete()
+            return JsonResponse({"success": True, "message": "Aturan perutean berhasil dihapus."})
+
+        return JsonResponse({"success": False, "message": "Aksi tidak valid."}, status=400)
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def sync_schedules_api(request):
+    """
+    API AJAX: CRUD Penjadwalan Backup / Sinkronisasi PACS.
+    """
+    if request.method == "GET":
+        schedules = list(SyncSchedule.objects.all().values(
+            'id', 'name', 'target_device__name', 'frequency', 'last_run', 'next_run', 'is_active'
+        ))
+        return JsonResponse({"success": True, "schedules": schedules})
+
+    # POST (Create / Toggle / Delete)
+    try:
+        data = json.loads(request.body)
+        action = data.get('action')
+
+        if action == 'create':
+            name = data.get('name')
+            device_id = data.get('device_id')
+            frequency = data.get('frequency', 'daily')
+
+            if not name or not device_id:
+                return JsonResponse({"success": False, "message": "Nama dan Node Tujuan wajib diisi."}, status=400)
+
+            device = DicomDevice.objects.get(id=device_id)
+            schedule = SyncSchedule.objects.create(
+                name=name,
+                target_device=device,
+                frequency=frequency
+            )
+            return JsonResponse({"success": True, "message": f"Jadwal '{schedule.name}' berhasil ditambahkan!"})
+
+        elif action == 'toggle':
+            sched_id = data.get('schedule_id')
+            schedule = SyncSchedule.objects.get(id=sched_id)
+            schedule.is_active = not schedule.is_active
+            schedule.save()
+            return JsonResponse({"success": True, "message": f"Status jadwal '{schedule.name}' berhasil diubah."})
+
+        elif action == 'delete':
+            sched_id = data.get('schedule_id')
+            schedule = SyncSchedule.objects.get(id=sched_id)
+            schedule.delete()
+            return JsonResponse({"success": True, "message": "Jadwal pencadangan berhasil dihapus."})
+
+        return JsonResponse({"success": False, "message": "Aksi tidak valid."}, status=400)
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def routing_logs_api(request):
+    """
+    API AJAX: Membaca log perutean otomatis terbaru.
+    """
+    logs = list(RoutingLog.objects.all()[:15].values(
+        'id', 'patient_name', 'modality', 'target_device_name', 'status', 'error_message', 'created_at'
+    ))
+    return JsonResponse({"success": True, "logs": logs})
+
+
+@login_required
+@require_http_methods(["GET"])
+def sync_logs_api(request):
+    """
+    API AJAX: Membaca log sinkronisasi backup terbaru.
+    """
+    logs = list(SyncLog.objects.all()[:15].values(
+        'id', 'schedule__name', 'total_studies', 'status', 'error_message', 'created_at'
+    ))
+    return JsonResponse({"success": True, "logs": logs})
+
 
 def error_404_view(request, exception):
     return render(request, '404.html', status=404)
 
 def error_500_view(request):
     return render(request, '500.html', status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def upload_logo_view(request):
+    """Mengupload logo/icon kustom untuk menggantikan logo default aplikasi."""
+    logo_file = request.FILES.get('logo')
+    if not logo_file:
+        messages.error(request, "Tidak ada file yang dipilih.")
+        return redirect('configuration_page')
+
+    allowed_types = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon']
+    if logo_file.content_type not in allowed_types:
+        messages.error(request, "Format file tidak didukung. Gunakan PNG, JPG, SVG, atau ICO.")
+        return redirect('configuration_page')
+
+    max_size = 2 * 1024 * 1024  # 2 MB
+    if logo_file.size > max_size:
+        messages.error(request, "Ukuran file maksimal 2MB.")
+        return redirect('configuration_page')
+
+    media_dir = os.path.join(settings.MEDIA_ROOT, 'branding')
+    os.makedirs(media_dir, exist_ok=True)
+
+    ext = os.path.splitext(logo_file.name)[1].lower() or '.png'
+    dest_path = os.path.join(media_dir, f'logo-icon{ext}')
+
+    # Hapus file logo lama jika ada
+    for f in os.listdir(media_dir):
+        if f.startswith('logo-icon'):
+            os.remove(os.path.join(media_dir, f))
+
+    with open(dest_path, 'wb+') as destination:
+        for chunk in logo_file.chunks():
+            destination.write(chunk)
+
+    SystemConfig.objects.update_or_create(
+        key='CUSTOM_LOGO_PATH',
+        defaults={'value': f'branding/logo-icon{ext}', 'description': 'Path logo kustom relatif dari MEDIA_ROOT'}
+    )
+
+    messages.success(request, "Logo berhasil diperbarui.")
+    return redirect('configuration_page')
+
+
+@login_required
+@require_http_methods(["POST"])
+def reset_logo_view(request):
+    """Menghapus logo kustom dan mengembalikan ke logo default."""
+    try:
+        config = SystemConfig.objects.get(key='CUSTOM_LOGO_PATH')
+        media_dir = os.path.join(settings.MEDIA_ROOT, 'branding')
+        file_path = os.path.join(settings.MEDIA_ROOT, config.value)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        config.delete()
+    except SystemConfig.DoesNotExist:
+        pass
+
+    messages.success(request, "Logo berhasil direset ke default.")
+    return redirect('configuration_page')

@@ -6,7 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Orthanc Bridge{% endblock %}</title>
-    <link rel="icon" type="image/png" href="{% static 'img/logo-icon.png' %}">
+    <link rel="icon" type="image/png" href="{% if logo_url %}{{ logo_url }}{% else %}{% static 'img/logo-icon.png' %}{% endif %}">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -152,7 +152,7 @@
         <div class="flex flex-col h-full">
             <div class="p-6 flex items-center justify-between">
                 <div class="flex items-center space-x-3">
-                    <img src="{% static 'img/logo-icon.png' %}" alt="Logo" class="w-10 h-10 object-contain">
+                    <img src="{% if logo_url %}{{ logo_url }}{% else %}{% static 'img/logo-icon.png' %}{% endif %}" alt="Logo" class="w-10 h-10 object-contain">
                     <h1 class="text-xs font-black text-gray-900 uppercase tracking-tighter">{{ app_name }}</h1>
                 </div>
                 <button onclick="toggleMobileSidebar()" class="p-2 text-gray-400 hover:text-gray-600">
@@ -167,13 +167,11 @@
                 <nav class="space-y-6">
                     {% for group in sidebar_menu %}
                     <div class="space-y-1">
-                        <p class="px-4 text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">{{
-                            group.group }}</p>
+                        <p class="px-4 text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">{{ group.group }}</p>
                         {% for item in group.items %}
                         <a href="{% url item.url %}"
                             class="flex items-center px-4 py-3 text-sm font-bold rounded-xl {% if request.resolver_match.url_name == item.url %}bg-blue-50 text-blue-600{% else %}text-gray-600{% endif %}">
-                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">{{
-                                item.icon|safe }}</svg>
+                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">{{ item.icon|safe }}</svg>
                             {{ item.name }}
                         </a>
                         {% endfor %}
@@ -192,14 +190,13 @@
             <div class="flex items-center space-x-4 mb-8">
                 <div class="relative">
                     <div class="absolute inset-0 bg-blue-600 blur-xl opacity-20"></div>
-                    <img src="{% static 'img/logo-icon.png' %}" alt="Logo"
+                    <img src="{% if logo_url %}{{ logo_url }}{% else %}{% static 'img/logo-icon.png' %}{% endif %}" alt="Logo"
                         class="relative w-12 h-12 object-contain rounded-2xl">
                 </div>
                 <div class="min-w-0">
                     <h1 class="text-sm font-black text-gray-900 tracking-tight leading-tight uppercase">{{ app_name }}
                     </h1>
-                    <p class="text-[9px] font-black text-blue-700/80 uppercase tracking-[0.2em] leading-tight mt-1">{{
-                        hospital_name }}</p>
+                    <p class="text-[9px] font-black text-blue-700/80 uppercase tracking-[0.2em] leading-tight mt-1">{{ hospital_name }}</p>
                 </div>
             </div>
         </div>
@@ -209,15 +206,13 @@
             <nav class="space-y-8">
                 {% for group in sidebar_menu %}
                 <div class="space-y-2">
-                    <p class="px-4 text-[9px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4">{{ group.group
-                        }}</p>
+                    <p class="px-4 text-[9px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4">{{ group.group }}</p>
                     {% for item in group.items %}
                     <a href="{% url item.url %}"
                         class="sidebar-link group flex items-center px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 {% if request.resolver_match.url_name == item.url %}bg-blue-50 text-blue-700 shadow-sm shadow-blue-500/5{% else %}text-gray-600 hover:bg-gray-50 hover:text-gray-900{% endif %}">
                         <div
                             class="w-8 h-8 rounded-lg flex items-center justify-center mr-3 transition-colors {% if request.resolver_match.url_name == item.url %}bg-blue-600 text-white shadow-lg shadow-blue-500/30{% else %}bg-gray-200 text-gray-500 group-hover:bg-white group-hover:text-blue-600 group-hover:shadow-md{% endif %}">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">{{ item.icon|safe
-                                }}</svg>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">{{ item.icon|safe }}</svg>
                         </div>
                         {{ item.name }}
                     </a>
@@ -353,12 +348,12 @@
                                 {{ user.username|slice:":2" }}
                             </div>
                             <div class="hidden sm:flex flex-col text-left">
-                                <span
-                                    class="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] leading-none mb-1">{%
-                                    if user.is_superuser %}Administrator{% else %}Operator{% endif %}</span>
-                                <span
-                                    class="text-sm font-bold text-gray-700 leading-none group-hover:text-blue-600 transition-colors">{{
-                                    user.username }}</span>
+                                <span class="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] leading-none mb-1">
+                                    {% if user.is_superuser %}Administrator{% else %}Operator{% endif %}
+                                </span>
+                                <span class="text-sm font-bold text-gray-700 leading-none group-hover:text-blue-600 transition-colors">
+                                    {{ user.username }}
+                                </span>
                             </div>
                             <svg class="w-4 h-4 ml-1 text-gray-400 group-hover:text-blue-500 group-hover:translate-y-0.5 transition-all"
                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">

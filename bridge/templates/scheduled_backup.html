@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% block title %}Scheduled Backup & Sync | Orthanc Bridge{% endblock %}
+{% block page_title %}Scheduled PACS Backup{% endblock %}
+
+{% block content %}
+
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Kolom Kiri: Form Tambah/Edit Jadwal Backup -->
+    <div class="lg:col-span-1">
+        <div class="bg-white p-8 rounded-[2rem] card-shadow border border-slate-100">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-base font-bold text-gray-900" id="formTitle">Jadwalkan Backup</h3>
+            </div>
+            <p class="text-xs text-gray-500 mb-6" id="formSubtitle">Atur jadwal sinkronisasi otomatis studi baru ke node penyimpanan PACS cadangan.</p>
+
+            <form onsubmit="submitSyncSchedule(event)" class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Nama Jadwal *</label>
+                    <input type="text" id="schedName" required placeholder="Contoh: Daily PACS Backup"
+                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-amber-500/20">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Frekuensi *</label>
+                    <select id="schedFrequency" required
+                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-amber-500/20">
+                        <option value="hourly">Setiap Jam</option>
+                        <option value="daily" selected>Setiap Hari (Tengah Malam)</option>
+                        <option value="weekly">Setiap Minggu</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Node DICOM Tujuan *</label>
+                    <select id="schedTargetDevice" required
+                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-amber-500/20">
+                        <option value="">-- Pilih Perangkat --</option>
+                        {% for device in devices %}
+                        <option value="{{ device.id }}">{{ device.name }} (AE: {{ device.ae_title }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" id="btnSubmit"
+                        class="w-full py-4 bg-amber-500 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-amber-500/20 hover:bg-amber-600 hover:-translate-y-0.5 active:translate-y-0 transition-all">
+                        Aktifkan Jadwal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Kolom Kanan: Daftar Jadwal & Log Backup -->
+    <div class="lg:col-span-2 space-y-8">
+        <div>
+            <h3 class="text-lg font-bold text-gray-900 mb-4">Jadwal Backup Terdaftar</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="schedulesContainer">
+                {% for schedule in schedules %}
+                <div class="bg-white rounded-3xl p-6 card-shadow border border-slate-50 flex flex-col justify-between" id="card-sched-{{ schedule.id }}">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-sm font-bold text-gray-900">{{ schedule.name }}</h4>
+                            <button onclick="toggleSchedule('{{ schedule.id }}')" 
+                                class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border transition-all
+                                {% if schedule.is_active %}bg-green-50 text-green-600 border-green-200/50 hover:bg-green-100{% else %}bg-slate-50 text-slate-400 border-slate-200/50 hover:bg-slate-100{% endif %}" id="btn-toggle-sched-{{ schedule.id }}">
+                                {% if schedule.is_active %}Aktif{% else %}Nonaktif{% endif %}
+                            </button>
+                        </div>
+                        <div class="text-xs text-slate-500 space-y-1 mb-4 bg-slate-50 p-3 rounded-2xl font-medium">
+                            <div><span class="text-slate-400">Frekuensi:</span> <span class="font-bold text-slate-700">{{ schedule.get_frequency_display }}</span></div>
+                            <div><span class="text-slate-400">Last Run:</span> <span class="text-slate-700 text-[10px]">{{ schedule.last_run|date:"d M Y, H:i"|default:"Belum pernah jalan" }}</span></div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between pt-3 border-t border-slate-50">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase">Tujuan: {{ schedule.target_device.name }}</span>
+                        <button onclick="deleteSchedule('{{ schedule.id }}')" class="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-span-2 p-8 text-center text-xs text-slate-400 bg-white rounded-3xl border border-slate-100 card-shadow">
+                    Belum ada jadwal sinkronisasi berkala yang dibuat.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Log Audit Backup -->
+        <div>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-900">Log Riwayat Backup</h3>
+                <button onclick="refreshSyncLogs()" class="text-xs font-bold text-amber-600 hover:text-amber-800 flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3m0 0l3 3m-3-3v8"></path></svg>
+                    Perbarui Log
+                </button>
+            </div>
+            <div class="bg-white rounded-3xl card-shadow border border-slate-50 overflow-hidden">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-400 uppercase tracking-widest font-black text-[9px] border-b border-slate-100">
+                            <th class="p-4 pl-6">Tanggal</th>
+                            <th class="p-4">Nama Jadwal</th>
+                            <th class="p-4">Total Studi</th>
+                            <th class="p-4 pr-6">Status</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+            <div class="max-h-[300px] overflow-y-auto custom-scrollbar bg-white rounded-b-3xl border-t border-slate-100 card-shadow border border-slate-100">
+                <table class="w-full text-left border-collapse text-xs">
+                    <tbody id="syncLogsBody">
+                        {% for log in sync_logs %}
+                        <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-all font-medium text-slate-600">
+                            <td class="p-4 pl-6 text-slate-400 font-normal text-[10px]">{{ log.created_at|date:"d M Y, H:i" }}</td>
+                            <td class="p-4 font-bold text-slate-800">{{ log.schedule.name|default:"Manual/Sistem" }}</td>
+                            <td class="p-4 font-bold">{{ log.total_studies }} Studi</td>
+                            <td class="p-4 pr-6">
+                                <span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg
+                                    {% if log.status == 'Success' %}bg-green-50 text-green-600
+                                    {% elif log.status == 'Partial' %}bg-amber-50 text-amber-600
+                                    {% else %}bg-red-50 text-red-600{% endif %}">
+                                    {{ log.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="p-8 text-center text-slate-400">Tidak ada log riwayat sinkronisasi.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    /* Mendaftarkan jadwal sinkronisasi otomatis baru */
+    async function submitSyncSchedule(e) {
+        e.preventDefault();
+        const name = document.getElementById('schedName').value.trim();
+        const frequency = document.getElementById('schedFrequency').value;
+        const device_id = document.getElementById('schedTargetDevice').value;
+
+        const btn = document.getElementById('btnSubmit');
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan...';
+
+        try {
+            const resp = await fetch('{% url "sync_schedules_api" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ action: 'create', name, frequency, device_id })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                showToast(res.message, 'success');
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                showToast(res.message, 'error');
+            }
+        } catch (err) {
+            showToast('Gagal membuat jadwal.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Aktifkan Jadwal';
+        }
+    }
+
+    /* Mengubah status keaktifan jadwal backup */
+    async function toggleSchedule(schedId) {
+        try {
+            const resp = await fetch('{% url "sync_schedules_api" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ action: 'toggle', schedule_id: schedId })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                showToast(res.message, 'success');
+                setTimeout(() => window.location.reload(), 1000);
+            }
+        } catch (err) {
+            showToast('Koneksi gagal.', 'error');
+        }
+    }
+
+    /* Menghapus jadwal backup dari sistem */
+    async function deleteSchedule(schedId) {
+        if (!confirm('Hapus jadwal backup ini?')) return;
+        try {
+            const resp = await fetch('{% url "sync_schedules_api" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ action: 'delete', schedule_id: schedId })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                showToast(res.message, 'success');
+                document.getElementById(`card-sched-${schedId}`).remove();
+            }
+        } catch (err) {
+            showToast('Gagal menghapus.', 'error');
+        }
+    }
+
+    /* Memperbarui log audit pencadangan secara real-time */
+    async function refreshSyncLogs() {
+        try {
+            const resp = await fetch('{% url "sync_logs_api" %}');
+            const res = await resp.json();
+            if (res.success) {
+                const tbody = document.getElementById('syncLogsBody');
+                if (res.logs.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-400">Tidak ada log riwayat sinkronisasi.</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = res.logs.map(log => {
+                    const dt = new Date(log.created_at);
+                    const formattedDate = `${String(dt.getDate()).padStart(2, '0')} ${dt.toLocaleString('id-ID', { month: 'short' })} ${dt.getFullYear()}, ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+                    let statusClass = 'bg-red-50 text-red-600';
+                    if (log.status === 'Success') statusClass = 'bg-green-50 text-green-600';
+                    else if (log.status === 'Partial') statusClass = 'bg-amber-50 text-amber-600';
+                    return `
+                        <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-all font-medium text-slate-600">
+                            <td class="p-4 pl-6 text-slate-400 font-normal text-[10px]">${formattedDate}</td>
+                            <td class="p-4 font-bold text-slate-800">${log.schedule__name || 'Manual/Sistem'}</td>
+                            <td class="p-4 font-bold">${log.total_studies} Studi</td>
+                            <td class="p-4 pr-6"><span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg ${statusClass}">${log.status}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+                showToast('Log sinkronisasi berhasil diperbarui.', 'success');
+            }
+        } catch (err) {
+            showToast('Gagal memuat log.', 'error');
+        }
+    }
+</script>
+{% endblock %}

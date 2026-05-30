@@ -247,6 +247,127 @@
         </div>
     </div>
 </div>
+
+<!-- DICOM Modify & Anonymize Modal -->
+<div id="modifyModalBackdrop" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[90] hidden transition-opacity duration-300 opacity-0 flex items-center justify-center p-4">
+    <div id="modifyModalContent" class="bg-white rounded-[2rem] shadow-2xl max-w-lg w-full overflow-hidden transform transition-all duration-300 scale-95 opacity-0 flex flex-col border border-slate-100">
+        <!-- Header -->
+        <div class="px-8 py-5 bg-slate-50 border-b border-slate-100 flex justify-between items-center flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-bold">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 leading-none mb-1">Anonimisasi & Modifikasi DICOM</h3>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none">Kelola Metadata Studi PACS</p>
+                </div>
+            </div>
+            <button onclick="closeModifyModal()" class="p-2 text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Detail Studi Terpilih -->
+        <div class="px-8 pt-6">
+            <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100/50 text-xs space-y-2">
+                <div class="flex justify-between">
+                    <span class="text-slate-400 font-bold">Pasien Saat Ini:</span>
+                    <span class="font-black text-slate-800" id="modifyPatientName">-</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400 font-bold">Accession:</span>
+                    <span class="font-bold text-slate-800" id="modifyAccession">-</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400 font-bold">Study ID:</span>
+                    <span class="font-mono text-[10px] text-slate-500" id="modifyStudyId">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Menu di Dalam Modal -->
+        <div class="px-8 pt-4 flex border-b border-slate-100 text-xs">
+            <button onclick="switchModifyTab('anonymize')" id="modifyTabBtn-anonymize" class="py-3 px-4 font-black uppercase tracking-wider border-b-2 border-amber-500 text-amber-600 transition-all">
+                Anonimisasi
+            </button>
+            <button onclick="switchModifyTab('modify')" id="modifyTabBtn-modify" class="py-3 px-4 font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 transition-all border-b-2 border-transparent">
+                Modifikasi Tag
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-8 overflow-y-auto max-h-[350px]">
+            <!-- Tab 1: Anonimisasi -->
+            <div id="modifyTabContent-anonymize" class="space-y-4">
+                <div class="bg-amber-50/50 border border-amber-200/50 rounded-xl p-4 text-xs text-amber-800 font-medium">
+                    <p class="font-bold mb-1">Peringatan Privasi Medis:</p>
+                    Aksi ini akan menghapus semua tag identitas pasien sensitif (seperti nama asli, ID pasien, tanggal lahir tepat) sesuai standar DICOM Basic Application Level Confidentiality Profile. Orthanc PACS akan membuat studi baru teranonimkan.
+                </div>
+                <div class="pt-4 flex justify-center">
+                    <button onclick="executeAnonymize()" id="btnSubmitAnonymize" class="w-full py-4 bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-amber-500/20 hover:bg-amber-600 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                        Jalankan Anonimisasi Studi
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab 2: Modifikasi Tag -->
+            <div id="modifyTabContent-modify" class="hidden space-y-4">
+                <form id="modifyTagsForm" onsubmit="executeModify(event)" class="space-y-3.5">
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Nama Pasien Baru (PatientName)</label>
+                        <input type="text" id="tagPatientName" placeholder="Contoh: PATIENT^DUMMY"
+                            class="w-full px-4 py-3 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-xs transition-all border border-transparent focus:border-blue-500/20 uppercase font-bold text-slate-700">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Patient ID Baru</label>
+                        <input type="text" id="tagPatientId" placeholder="Contoh: PX-99999"
+                            class="w-full px-4 py-3 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-xs transition-all border border-transparent focus:border-blue-500/20 font-mono text-slate-700">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Tanggal Lahir (PatientBirthDate)</label>
+                        <input type="text" id="tagPatientBirthDate" placeholder="Format: YYYYMMDD (Cth: 19900101)"
+                            class="w-full px-4 py-3 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-xs transition-all border border-transparent focus:border-blue-500/20 font-mono text-slate-700">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Deskripsi Studi Baru (StudyDescription)</label>
+                        <input type="text" id="tagStudyDescription" placeholder="Contoh: CT Thorax With Contrast"
+                            class="w-full px-4 py-3 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-xs transition-all border border-transparent focus:border-blue-500/20 text-slate-700">
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" id="btnSubmitModify" class="w-full py-4 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                            </svg>
+                            Simpan Perubahan Tag
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="modifyProgress" class="hidden flex flex-col items-center justify-center py-4">
+                <div class="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse" id="modifyStatusText">Memproses di PACS Orthanc...</p>
+            </div>
+            
+            <!-- Alert Box -->
+            <div id="modifyAlert" class="hidden rounded-xl p-4 text-xs font-bold mt-4"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 flex-shrink-0">
+            <button onclick="closeModifyModal()" id="btnCancelModify" class="px-5 py-3.5 bg-white border border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-colors">Tutup</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -499,6 +620,12 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
                                 </svg>
                                 Transfer
+                            </button>
+                            <button onclick="openModifyModal('${s.study_id}', '${s.patient_name.replace(/'/g, "\\'")}', '${s.accession_number || ''}')" class="px-3.5 py-2 bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-amber-100/50 hover:shadow-lg hover:shadow-amber-500/25 group-hover:opacity-100 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                </svg>
+                                Anonim/Modif
                             </button>
                             <button onclick="viewStudyDetail('${s.study_id}')" class="px-3.5 py-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-blue-100/50 hover:shadow-lg hover:shadow-blue-500/25 group-hover:opacity-100">
                                 Detail
@@ -855,6 +982,199 @@
             btnSubmit.disabled = false;
             btnCancel.disabled = false;
             deviceSelect.disabled = false;
+        }
+    }
+
+    // ==================== DICOM MODIFY & ANONYMIZE JAVASCRIPT ====================
+    let currentModifyStudyId = '';
+    let currentModifyTab = 'anonymize';
+
+    // Fungsi untuk membuka modal modifikasi metadata DICOM
+    function openModifyModal(studyId, patientName, accessionNumber) {
+        currentModifyStudyId = studyId;
+        
+        // Reset fields
+        document.getElementById('modifyPatientName').innerText = patientName;
+        document.getElementById('modifyAccession').innerText = accessionNumber || '-';
+        document.getElementById('modifyStudyId').innerText = studyId;
+        
+        // Reset form tags
+        document.getElementById('tagPatientName').value = patientName;
+        document.getElementById('tagPatientId').value = '';
+        document.getElementById('tagPatientBirthDate').value = '';
+        document.getElementById('tagStudyDescription').value = '';
+        
+        // Reset alerts & state
+        const alertBox = document.getElementById('modifyAlert');
+        alertBox.className = 'hidden rounded-xl p-4 text-xs font-bold mt-4';
+        alertBox.innerText = '';
+        
+        document.getElementById('modifyProgress').classList.add('hidden');
+        document.getElementById('modifyTabContent-anonymize').classList.remove('hidden');
+        document.getElementById('modifyTabContent-modify').classList.add('hidden');
+        
+        // Default tab anonymize
+        switchModifyTab('anonymize');
+        
+        const backdrop = document.getElementById('modifyModalBackdrop');
+        const content = document.getElementById('modifyModalContent');
+        
+        backdrop.classList.remove('hidden');
+        setTimeout(() => {
+            backdrop.classList.remove('opacity-0');
+            content.classList.remove('scale-95', 'opacity-0');
+        }, 10);
+    }
+
+    // Fungsi untuk menutup modal modifikasi
+    function closeModifyModal() {
+        const backdrop = document.getElementById('modifyModalBackdrop');
+        const content = document.getElementById('modifyModalContent');
+        
+        backdrop.classList.add('opacity-0');
+        content.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            backdrop.classList.add('hidden');
+            currentModifyStudyId = '';
+        }, 300);
+    }
+
+    // Mengganti tab aktif di dalam modal modifikasi
+    function switchModifyTab(tabId) {
+        currentModifyTab = tabId;
+        document.getElementById('modifyTabContent-anonymize').classList.add('hidden');
+        document.getElementById('modifyTabContent-modify').classList.add('hidden');
+        document.getElementById(`modifyTabContent-${tabId}`).classList.remove('hidden');
+
+        // Reset tab button styles
+        const btnAnonymize = document.getElementById('modifyTabBtn-anonymize');
+        const btnModify = document.getElementById('modifyTabBtn-modify');
+        
+        btnAnonymize.className = "py-3 px-4 font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 transition-all border-b-2 border-transparent";
+        btnModify.className = "py-3 px-4 font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 transition-all border-b-2 border-transparent";
+
+        const activeBtn = document.getElementById(`modifyTabBtn-${tabId}`);
+        if (tabId === 'anonymize') {
+            activeBtn.className = "py-3 px-4 font-black uppercase tracking-wider border-b-2 border-amber-500 text-amber-600 transition-all";
+        } else {
+            activeBtn.className = "py-3 px-4 font-black uppercase tracking-wider border-b-2 border-blue-500 text-blue-600 transition-all";
+        }
+    }
+
+    // Eksekusi asinkron satu-klik anonimisasi studi di PACS
+    async function executeAnonymize() {
+        const alertBox = document.getElementById('modifyAlert');
+        const progress = document.getElementById('modifyProgress');
+        const btnSubmit = document.getElementById('btnSubmitAnonymize');
+        const tabContent = document.getElementById('modifyTabContent-anonymize');
+
+        alertBox.classList.add('hidden');
+        progress.classList.remove('hidden');
+        tabContent.classList.add('hidden');
+        
+        try {
+            const response = await fetch(`/api/dicom-modify/${currentModifyStudyId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    action: 'anonymize'
+                })
+            });
+
+            const data = await response.json();
+            progress.classList.add('hidden');
+
+            if (data.success) {
+                alertBox.className = 'rounded-xl p-4 text-xs font-bold bg-green-50 text-green-700 border border-green-200/50 mt-4';
+                alertBox.innerText = data.message;
+                alertBox.classList.remove('hidden');
+                
+                // Segarkan tabel untuk memuat studi baru yang teranonimkan
+                setTimeout(() => {
+                    closeModifyModal();
+                    fetchStudies();
+                }, 3000);
+            } else {
+                throw new Error(data.message || 'Gagal memproses anonimisasi studi.');
+            }
+        } catch (error) {
+            progress.classList.add('hidden');
+            tabContent.classList.remove('hidden');
+            
+            alertBox.className = 'rounded-xl p-4 text-xs font-bold bg-red-50 text-red-700 border border-red-200/50 mt-4';
+            alertBox.innerText = error.message;
+            alertBox.classList.remove('hidden');
+        }
+    }
+
+    // Eksekusi asinkron modifikasi tag DICOM studi di PACS
+    async function executeModify(e) {
+        e.preventDefault();
+        const alertBox = document.getElementById('modifyAlert');
+        const progress = document.getElementById('modifyProgress');
+        const tabContent = document.getElementById('modifyTabContent-modify');
+
+        const newPatientName = document.getElementById('tagPatientName').value.trim();
+        const newPatientId = document.getElementById('tagPatientId').value.trim();
+        const newPatientBirthDate = document.getElementById('tagPatientBirthDate').value.trim();
+        const newStudyDescription = document.getElementById('tagStudyDescription').value.trim();
+
+        const replaceTags = {};
+        if (newPatientName) replaceTags["PatientName"] = newPatientName.toUpperCase().replace(/ /g, '^');
+        if (newPatientId) replaceTags["PatientID"] = newPatientId;
+        if (newPatientBirthDate) replaceTags["PatientBirthDate"] = newPatientBirthDate;
+        if (newStudyDescription) replaceTags["StudyDescription"] = newStudyDescription;
+
+        if (Object.keys(replaceTags).length === 0) {
+            alertBox.className = 'rounded-xl p-4 text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200/50 mt-4';
+            alertBox.innerText = 'Silakan isi minimal satu tag DICOM untuk dimodifikasi.';
+            alertBox.classList.remove('hidden');
+            return;
+        }
+
+        alertBox.classList.add('hidden');
+        progress.classList.remove('hidden');
+        tabContent.classList.add('hidden');
+
+        try {
+            const response = await fetch(`/api/dicom-modify/${currentModifyStudyId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    action: 'modify',
+                    replace: replaceTags
+                })
+            });
+
+            const data = await response.json();
+            progress.classList.add('hidden');
+
+            if (data.success) {
+                alertBox.className = 'rounded-xl p-4 text-xs font-bold bg-green-50 text-green-700 border border-green-200/50 mt-4';
+                alertBox.innerText = data.message;
+                alertBox.classList.remove('hidden');
+
+                // Segarkan tabel untuk memuat studi baru yang dimodifikasi
+                setTimeout(() => {
+                    closeModifyModal();
+                    fetchStudies();
+                }, 3000);
+            } else {
+                throw new Error(data.message || 'Gagal memodifikasi tag DICOM studi.');
+            }
+        } catch (error) {
+            progress.classList.add('hidden');
+            tabContent.classList.remove('hidden');
+
+            alertBox.className = 'rounded-xl p-4 text-xs font-bold bg-red-50 text-red-700 border border-red-200/50 mt-4';
+            alertBox.innerText = error.message;
+            alertBox.classList.remove('hidden');
         }
     }
 
