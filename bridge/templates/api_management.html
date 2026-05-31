@@ -292,9 +292,22 @@
 {% block scripts %}
 <script>
     function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(() => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('API Key berhasil disalin ke clipboard');
+            });
+        } else {
+            // Fallback untuk HTTP / browser lama
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
             showToast('API Key berhasil disalin ke clipboard');
-        });
+        }
     }
 
     // Toggle visibilitas password input
