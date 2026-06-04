@@ -28,21 +28,30 @@ class Command(BaseCommand):
                 active_schedules = SyncSchedule.objects.filter(is_active=True)
 
                 for schedule in active_schedules:
-                    run_needed = False
+                    run_needed  = False
+                    local_now   = now.astimezone()
 
-                    # Tentukan apakah jadwal perlu dijalankan
                     if not schedule.last_run:
-                        # Belum pernah berjalan -> Jalankan pertama kali
                         run_needed = True
                     else:
-                        time_since_last_run = now - schedule.last_run
-                        if schedule.frequency == 'hourly' and time_since_last_run >= timedelta(hours=1):
-                            run_needed = True
-                        elif schedule.frequency == 'daily' and time_since_last_run >= timedelta(hours=23):
-                            # Beri margin 1 jam agar konsisten berjalan tiap hari
-                            run_needed = True
-                        elif schedule.frequency == 'weekly' and time_since_last_run >= timedelta(days=6, hours=23):
-                            run_needed = True
+                        elapsed = now - schedule.last_run
+                        if schedule.frequency == 'hourly':
+                            run_needed = elapsed >= timedelta(hours=1)
+                        elif schedule.frequency == 'daily':
+                            # Jalankan jika sudah lewat 23 jam DAN saat ini >= jam terjadwal
+                            past_threshold = elapsed >= timedelta(hours=23)
+                            at_scheduled_time = (
+                                local_now.hour > schedule.run_hour or
+                                (local_now.hour == schedule.run_hour and local_now.minute >= schedule.run_minute)
+                            )
+                            run_needed = past_threshold and at_scheduled_time
+                        elif schedule.frequency == 'weekly':
+                            past_threshold = elapsed >= timedelta(days=6, hours=23)
+                            at_scheduled_time = (
+                                local_now.hour > schedule.run_hour or
+                                (local_now.hour == schedule.run_hour and local_now.minute >= schedule.run_minute)
+                            )
+                            run_needed = past_threshold and at_scheduled_time
 
                     if not run_needed:
                         continue
@@ -63,13 +72,14 @@ class Command(BaseCommand):
                         last_week_str = (datetime.now() - timedelta(days=7)).strftime("%Y%m%d")
                         date_range = f"{last_week_str}-{today_str}"
 
-                    # 2. Cari studi di Orthanc menggunakan /tools/find dengan filter tanggal
-                    find_payload = {
-                        "Level": "Study",
-                        "Query": {
-                            "StudyDate": date_range
-                        }
-                    }
+                    # 2. Cari studi di Orthanc menggunakan /tools/find dengan filter tanggal & modality
+                    find_query = {"StudyDate": date_range}
+                    if schedule.modality_filter:
+                        modalities = [m.strip() for m in schedule.modality_filter.split(',') if m.strip()]
+                        if len(modalities) == 1:
+                            find_query["ModalitiesInStudy"] = modalities[0]
+
+                    find_payload = {"Level": "Study", "Query": find_query}
 
                     try:
                         find_resp = requests.post(f"{clean_url}/tools/find", auth=(user, pw), json=find_payload, timeout=30)

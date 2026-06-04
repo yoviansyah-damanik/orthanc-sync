@@ -1802,15 +1802,22 @@ def dicom_router_view(request):
 # View untuk halaman Scheduled Backup (dipisahkan dari DICOM Router)
 @login_required
 def scheduled_backup_view(request):
-    """Halaman manajemen jadwal backup/sinkronisasi PACS"""
-    devices = DicomDevice.objects.all()
+    """Halaman manajemen jadwal pengiriman otomatis studi DICOM"""
+    devices   = DicomDevice.objects.all()
     schedules = SyncSchedule.objects.all()
-    sync_logs = SyncLog.objects.all()[:15]
-    
+    sync_logs = SyncLog.objects.all()[:20]
+
+    # Cari device default Satu Sehat (nama mengandung 'satu sehat', case-insensitive)
+    default_device_id = ''
+    satu_sehat = DicomDevice.objects.filter(name__icontains='satu sehat').first()
+    if satu_sehat:
+        default_device_id = str(satu_sehat.id)
+
     return render(request, 'scheduled_backup.html', {
-        'devices': devices,
-        'schedules': schedules,
-        'sync_logs': sync_logs,
+        'devices':           devices,
+        'schedules':         schedules,
+        'sync_logs':         sync_logs,
+        'default_device_id': default_device_id,
     })
 
 
@@ -1940,9 +1947,12 @@ def sync_schedules_api(request):
         action = data.get('action')
 
         if action == 'create':
-            name = data.get('name')
-            device_id = data.get('device_id')
-            frequency = data.get('frequency', 'daily')
+            name            = data.get('name')
+            device_id       = data.get('device_id')
+            frequency       = data.get('frequency', 'daily')
+            run_hour        = int(data.get('run_hour', 0))
+            run_minute      = int(data.get('run_minute', 0))
+            modality_filter = str(data.get('modality_filter', '')).strip().upper()
 
             if not name or not device_id:
                 return JsonResponse({"success": False, "message": "Nama dan Node Tujuan wajib diisi."}, status=400)
@@ -1951,7 +1961,10 @@ def sync_schedules_api(request):
             schedule = SyncSchedule.objects.create(
                 name=name,
                 target_device=device,
-                frequency=frequency
+                frequency=frequency,
+                run_hour=run_hour,
+                run_minute=run_minute,
+                modality_filter=modality_filter,
             )
             return JsonResponse({"success": True, "message": f"Jadwal '{schedule.name}' berhasil ditambahkan!"})
 
@@ -2182,6 +2195,137 @@ def orthanc_modalities_api(request):
             return JsonResponse({"success": False, "message": str(e)}, status=500)
 
     return JsonResponse({"success": False, "message": "Aksi tidak valid."}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def run_schedule_now(request, schedule_id):
+    """Menjalankan jadwal pengiriman DICOM secara manual (trigger sekarang)."""
+    try:
+        schedule = SyncSchedule.objects.get(id=schedule_id)
+    except SyncSchedule.DoesNotExist:
+        return JsonResponse({"success": False, "message": "Jadwal tidak ditemukan."}, status=404)
+
+    url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+    user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+    pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+    clean_url = url.rstrip('/')
+
+    from datetime import datetime as dt
+    today_str     = dt.now().strftime("%Y%m%d")
+    yesterday_str = (dt.now() - timedelta(days=1)).strftime("%Y%m%d")
+    last_week_str = (dt.now() - timedelta(days=7)).strftime("%Y%m%d")
+
+    if schedule.frequency == 'hourly':
+        date_range = today_str
+    elif schedule.frequency == 'daily':
+        date_range = f"{yesterday_str}-{today_str}"
+    else:
+        date_range = f"{last_week_str}-{today_str}"
+
+    try:
+        query = {"Level": "Study", "Query": {"StudyDate": date_range}}
+        if schedule.modality_filter:
+            modalities = [m.strip() for m in schedule.modality_filter.split(',') if m.strip()]
+            if len(modalities) == 1:
+                query["Query"]["ModalitiesInStudy"] = modalities[0]
+
+        find_resp = requests.post(f"{clean_url}/tools/find", auth=(user, pw), json=query, timeout=30)
+        if find_resp.status_code != 200:
+            raise Exception(f"Gagal cari studi: {find_resp.text}")
+
+        study_ids = find_resp.json()
+        if not study_ids:
+            return JsonResponse({"success": True, "message": "Tidak ada studi baru dalam rentang waktu jadwal."})
+
+        device = schedule.target_device
+        sym    = f"device_{device.id.hex}"
+        requests.put(f"{clean_url}/modalities/{sym}", auth=(user, pw), json={
+            "AET": device.ae_title, "Host": device.host, "Port": int(device.port),
+            "Manufacturer": "Generic", "AllowEcho": True, "AllowStore": True,
+        }, timeout=10)
+
+        success_count, failed_count, errors = 0, 0, []
+        for sid in study_ids:
+            try:
+                r = requests.post(f"{clean_url}/modalities/{sym}/store", auth=(user, pw), json=[sid], timeout=120)
+                if r.status_code != 200 or r.json().get('FailedInstancesCount', 0) > 0:
+                    raise Exception(r.text)
+                success_count += 1
+            except Exception as ex:
+                failed_count += 1
+                errors.append(str(ex))
+
+        status = "Success" if failed_count == 0 else ("Partial" if success_count > 0 else "Failed")
+        SyncLog.objects.create(
+            schedule=schedule, total_studies=success_count, status=status,
+            error_message="\n".join(errors) if errors else None
+        )
+        schedule.last_run = timezone.now()
+        schedule.save()
+
+        return JsonResponse({
+            "success": True,
+            "message": f"Selesai: {success_count} studi berhasil, {failed_count} gagal dikirim ke {device.name}."
+        })
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+
+@login_required
+def orthanc_info_view(request):
+    """Halaman info sistem dan plugin Orthanc."""
+    return render(request, 'orthanc_info.html')
+
+
+@login_required
+def orthanc_info_api(request):
+    """API untuk mengambil data sistem dan plugin dari Orthanc."""
+    url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+    user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+    pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+    clean_url = url.rstrip('/')
+
+    try:
+        sys_resp = requests.get(f"{clean_url}/system", auth=(user, pw), timeout=5)
+        if sys_resp.status_code != 200:
+            return JsonResponse({"success": False, "message": f"Orthanc merespon {sys_resp.status_code}"}, status=502)
+        system = sys_resp.json()
+
+        # Ambil statistik storage
+        stats_resp = requests.get(f"{clean_url}/statistics", auth=(user, pw), timeout=5)
+        statistics = stats_resp.json() if stats_resp.status_code == 200 else {}
+
+        # Ambil daftar plugin beserta detailnya
+        plugins_resp = requests.get(f"{clean_url}/plugins", auth=(user, pw), timeout=5)
+        plugins = []
+        if plugins_resp.status_code == 200:
+            for pid in plugins_resp.json():
+                try:
+                    detail = requests.get(f"{clean_url}/plugins/{pid}", auth=(user, pw), timeout=3).json()
+                    plugins.append({
+                        "id":          detail.get("ID", pid),
+                        "version":     detail.get("Version", "-"),
+                        "description": detail.get("Description", ""),
+                        "root_uri":    detail.get("RootUri", ""),
+                    })
+                except Exception:
+                    plugins.append({"id": pid, "version": "-", "description": "", "root_uri": ""})
+
+        plugins.sort(key=lambda p: p["id"].lower())
+
+        return JsonResponse({
+            "success":    True,
+            "system":     system,
+            "statistics": statistics,
+            "plugins":    plugins,
+            "orthanc_url": clean_url,
+        })
+
+    except requests.exceptions.ConnectionError:
+        return JsonResponse({"success": False, "message": "Tidak dapat terhubung ke Orthanc. Pastikan Orthanc sedang berjalan."}, status=503)
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
 
 
 def error_404_view(request, exception):

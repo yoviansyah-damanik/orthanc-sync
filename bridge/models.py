@@ -147,20 +147,23 @@ class RoutingLog(models.Model):
 # ─── 2. SCHEDULED PACS BACKUP MODELS ───────────────────────────────────────
 
 class SyncSchedule(models.Model):
-    """Model untuk menjadwalkan pencadangan dan sinkronisasi otomatis"""
+    """Model untuk menjadwalkan pengiriman otomatis studi DICOM ke node tujuan"""
     FREQUENCY_CHOICES = [
         ('hourly', 'Setiap Jam'),
-        ('daily', 'Setiap Hari (Tengah Malam)'),
+        ('daily',  'Setiap Hari'),
         ('weekly', 'Setiap Minggu (Hari Minggu)'),
     ]
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=150)
-    target_device = models.ForeignKey(DicomDevice, on_delete=models.CASCADE, related_name="sync_schedules")
-    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='daily')
-    last_run = models.DateTimeField(null=True, blank=True)
-    next_run = models.DateTimeField(null=True, blank=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    id              = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name            = models.CharField(max_length=150)
+    target_device   = models.ForeignKey(DicomDevice, on_delete=models.CASCADE, related_name="sync_schedules")
+    frequency       = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='daily')
+    run_hour        = models.PositiveSmallIntegerField(default=0, help_text='Jam pengiriman (0-23) untuk jadwal harian/mingguan')
+    run_minute      = models.PositiveSmallIntegerField(default=0, help_text='Menit pengiriman (0-59)')
+    modality_filter = models.CharField(max_length=100, blank=True, default='', help_text='Filter modalitas cth: CT,MR — kosongkan untuk semua')
+    last_run        = models.DateTimeField(null=True, blank=True)
+    next_run        = models.DateTimeField(null=True, blank=True)
+    is_active       = models.BooleanField(default=True)
+    created_at      = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.name} ({self.get_frequency_display()}) -> {self.target_device.name}"

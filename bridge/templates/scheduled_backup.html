@@ -1,12 +1,11 @@
 {% extends 'base.html' %}
-{% block title %}Scheduled Backup & Sync | Orthanc Bridge{% endblock %}
-{% block page_title %}Scheduled PACS Backup{% endblock %}
+{% block title %}Penjadwalan DICOM | Orthanc Bridge{% endblock %}
+{% block page_title %}Penjadwalan Otomatis DICOM{% endblock %}
 
 {% block content %}
-
-
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-    <!-- Kolom Kiri: Form Tambah/Edit Jadwal Backup -->
+
+    <!-- Kolom Kiri: Form Jadwal -->
     <div class="lg:col-span-1">
         <div class="bg-white p-8 rounded-[2rem] card-shadow border border-slate-100">
             <div class="flex items-center gap-3 mb-2">
@@ -15,34 +14,66 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </div>
-                <h3 class="text-base font-bold text-gray-900" id="formTitle">Jadwalkan Backup</h3>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">Tambah Jadwal</h3>
+                    <p class="text-xs text-gray-500">Pengiriman otomatis studi ke node DICOM.</p>
+                </div>
             </div>
-            <p class="text-xs text-gray-500 mb-6" id="formSubtitle">Atur jadwal sinkronisasi otomatis studi baru ke node penyimpanan PACS cadangan.</p>
 
-            <form onsubmit="submitSyncSchedule(event)" class="space-y-4">
+            <form onsubmit="submitSyncSchedule(event)" class="mt-6 space-y-4">
                 <div>
                     <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Nama Jadwal *</label>
-                    <input type="text" id="schedName" required placeholder="Contoh: Daily PACS Backup"
+                    <input type="text" id="schedName" required placeholder="Contoh: Kirim ke Satu Sehat Harian"
                         class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-amber-500/20">
                 </div>
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Frekuensi *</label>
-                    <select id="schedFrequency" required
-                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-amber-500/20">
-                        <option value="hourly">Setiap Jam</option>
-                        <option value="daily" selected>Setiap Hari (Tengah Malam)</option>
-                        <option value="weekly">Setiap Minggu</option>
-                    </select>
-                </div>
+
                 <div>
                     <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Node DICOM Tujuan *</label>
                     <select id="schedTargetDevice" required
                         class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-amber-500/20">
                         <option value="">-- Pilih Perangkat --</option>
                         {% for device in devices %}
-                        <option value="{{ device.id }}">{{ device.name }} (AE: {{ device.ae_title }})</option>
+                        <option value="{{ device.id }}" {% if device.id|stringformat:"s" == default_device_id %}selected{% endif %}>
+                            {{ device.name }}{% if device.ae_title %} ({{ device.ae_title }}){% endif %}
+                        </option>
                         {% endfor %}
                     </select>
+                    {% if default_device_id %}
+                    <p class="text-[10px] text-amber-600 font-bold mt-1 ml-1 flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                        Default: DICOM Router Satu Sehat terdeteksi
+                    </p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Frekuensi *</label>
+                    <select id="schedFrequency" required onchange="toggleTimeFields()"
+                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-amber-500/20">
+                        <option value="hourly">Setiap Jam</option>
+                        <option value="daily" selected>Setiap Hari</option>
+                        <option value="weekly">Setiap Minggu (Hari Minggu)</option>
+                    </select>
+                </div>
+
+                <div id="timeFieldsWrapper" class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Jam (0-23)</label>
+                        <input type="number" id="schedHour" min="0" max="23" value="0"
+                            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-amber-500/20">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Menit (0-59)</label>
+                        <input type="number" id="schedMinute" min="0" max="59" value="0"
+                            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-amber-500/20">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Filter Modalitas</label>
+                    <input type="text" id="schedModality" placeholder="Contoh: CT,MR — kosongkan untuk semua"
+                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-amber-500/20 uppercase">
+                    <p class="text-[10px] text-slate-400 mt-1 ml-1">Pisahkan dengan koma untuk beberapa modalitas</p>
                 </div>
 
                 <div class="pt-2">
@@ -55,30 +86,66 @@
         </div>
     </div>
 
-    <!-- Kolom Kanan: Daftar Jadwal & Log Backup -->
+    <!-- Kolom Kanan -->
     <div class="lg:col-span-2 space-y-8">
+
+        <!-- Daftar Jadwal -->
         <div>
-            <h3 class="text-lg font-bold text-gray-900 mb-4">Jadwal Backup Terdaftar</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="schedulesContainer">
+            <div class="flex items-center justify-between mb-5">
+                <h3 class="text-lg font-bold text-gray-900">Jadwal Aktif</h3>
+                <span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl">{{ schedules.count }} Jadwal</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5" id="schedulesContainer">
                 {% for schedule in schedules %}
-                <div class="bg-white rounded-3xl p-6 card-shadow border border-slate-50 flex flex-col justify-between" id="card-sched-{{ schedule.id }}">
+                <div class="bg-white rounded-[2rem] p-7 card-shadow border border-slate-50 flex flex-col justify-between group hover:shadow-xl transition-all duration-300" id="card-sched-{{ schedule.id }}">
                     <div>
-                        <div class="flex items-center justify-between mb-3">
-                            <h4 class="text-sm font-bold text-gray-900">{{ schedule.name }}</h4>
-                            <button onclick="toggleSchedule('{{ schedule.id }}')" 
-                                class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border transition-all
-                                {% if schedule.is_active %}bg-green-50 text-green-600 border-green-200/50 hover:bg-green-100{% else %}bg-slate-50 text-slate-400 border-slate-200/50 hover:bg-slate-100{% endif %}" id="btn-toggle-sched-{{ schedule.id }}">
-                                {% if schedule.is_active %}Aktif{% else %}Nonaktif{% endif %}
-                            </button>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full {% if schedule.is_active %}bg-green-500 animate-pulse{% else %}bg-slate-300{% endif %}"></span>
+                                <span class="text-[10px] font-black uppercase tracking-widest {% if schedule.is_active %}text-green-600{% else %}text-slate-400{% endif %}">{% if schedule.is_active %}Aktif{% else %}Nonaktif{% endif %}</span>
+                            </div>
+                            <span class="text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100/50 px-2.5 py-1 rounded-lg">{{ schedule.get_frequency_display }}</span>
                         </div>
-                        <div class="text-xs text-slate-500 space-y-1 mb-4 bg-slate-50 p-3 rounded-2xl font-medium">
-                            <div><span class="text-slate-400">Frekuensi:</span> <span class="font-bold text-slate-700">{{ schedule.get_frequency_display }}</span></div>
-                            <div><span class="text-slate-400">Last Run:</span> <span class="text-slate-700 text-[10px]">{{ schedule.last_run|date:"d M Y, H:i"|default:"Belum pernah jalan" }}</span></div>
+
+                        <h4 class="text-sm font-black text-gray-900 mb-1">{{ schedule.name }}</h4>
+                        <p class="text-xs text-slate-400 font-medium mb-4">→ {{ schedule.target_device.name }}</p>
+
+                        <div class="bg-slate-50 rounded-2xl p-4 space-y-1.5 border border-slate-100/50 text-xs text-slate-600 mb-5">
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Waktu:</span>
+                                <span class="font-bold">{% if schedule.frequency == 'hourly' %}Setiap jam{% else %}{{ schedule.run_hour|stringformat:"02d" }}:{{ schedule.run_minute|stringformat:"02d" }}{% endif %}</span>
+                            </div>
+                            {% if schedule.modality_filter %}
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Filter:</span>
+                                <span class="font-bold font-mono">{{ schedule.modality_filter }}</span>
+                            </div>
+                            {% endif %}
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Last Run:</span>
+                                <span class="font-medium text-[10px]">{{ schedule.last_run|date:"d M Y, H:i"|default:"Belum pernah" }}</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase">Tujuan: {{ schedule.target_device.name }}</span>
-                        <button onclick="deleteSchedule('{{ schedule.id }}')" class="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors">
+
+                    <div class="flex gap-2.5 pt-4 border-t border-slate-100">
+                        <button onclick="runScheduleNow('{{ schedule.id }}', this)"
+                            class="flex-1 py-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors text-xs font-bold flex items-center justify-center gap-1.5">
+                            <svg class="w-4 h-4 run-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Jalankan Sekarang
+                        </button>
+                        <button onclick="toggleSchedule('{{ schedule.id }}')" id="btn-toggle-{{ schedule.id }}"
+                            class="p-2.5 rounded-xl transition-colors {% if schedule.is_active %}bg-green-50 text-green-600 hover:bg-green-100{% else %}bg-slate-100 text-slate-400 hover:bg-slate-200{% endif %}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                        </button>
+                        <button onclick="deleteSchedule('{{ schedule.id }}')"
+                            class="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                             </svg>
@@ -86,58 +153,62 @@
                     </div>
                 </div>
                 {% empty %}
-                <div class="col-span-2 p-8 text-center text-xs text-slate-400 bg-white rounded-3xl border border-slate-100 card-shadow">
-                    Belum ada jadwal sinkronisasi berkala yang dibuat.
+                <div class="col-span-2 bg-white rounded-[2rem] p-12 text-center card-shadow border border-slate-100">
+                    <h4 class="text-base font-bold text-gray-800 mb-1">Belum Ada Jadwal</h4>
+                    <p class="text-xs text-gray-500 max-w-sm mx-auto">Buat jadwal pengiriman otomatis menggunakan form di sebelah kiri.</p>
                 </div>
                 {% endfor %}
             </div>
         </div>
 
-        <!-- Log Audit Backup -->
+        <!-- Log Riwayat -->
         <div>
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-bold text-gray-900">Log Riwayat Backup</h3>
-                <button onclick="refreshSyncLogs()" class="text-xs font-bold text-amber-600 hover:text-amber-800 flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3m0 0l3 3m-3-3v8"></path></svg>
+            <div class="flex items-center justify-between mb-5">
+                <h3 class="text-lg font-bold text-gray-900">Log Riwayat Pengiriman</h3>
+                <button onclick="refreshSyncLogs()" id="logRefreshBtn"
+                    class="flex items-center gap-1.5 text-xs font-bold text-amber-600 hover:text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl hover:bg-amber-100 transition-all">
+                    <svg id="logRefreshIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
                     Perbarui Log
                 </button>
             </div>
-            <div class="bg-white rounded-3xl card-shadow border border-slate-50 overflow-hidden">
+            <div class="bg-white rounded-[2rem] card-shadow border border-slate-100 overflow-hidden">
                 <table class="w-full text-left border-collapse text-xs">
                     <thead>
-                        <tr class="bg-slate-50 text-slate-400 uppercase tracking-widest font-black text-[9px] border-b border-slate-100">
-                            <th class="p-4 pl-6">Tanggal</th>
-                            <th class="p-4">Nama Jadwal</th>
-                            <th class="p-4">Total Studi</th>
-                            <th class="p-4 pr-6">Status</th>
+                        <tr class="bg-slate-50/80 border-b border-slate-100">
+                            <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal</th>
+                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Jadwal</th>
+                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Studi</th>
+                            <th class="px-4 py-4 pr-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                         </tr>
                     </thead>
                 </table>
-            </div>
-            <div class="max-h-[300px] overflow-y-auto custom-scrollbar bg-white rounded-b-3xl border-t border-slate-100 card-shadow border border-slate-100">
-                <table class="w-full text-left border-collapse text-xs">
-                    <tbody id="syncLogsBody">
-                        {% for log in sync_logs %}
-                        <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-all font-medium text-slate-600">
-                            <td class="p-4 pl-6 text-slate-400 font-normal text-[10px]">{{ log.created_at|date:"d M Y, H:i" }}</td>
-                            <td class="p-4 font-bold text-slate-800">{{ log.schedule.name|default:"Manual/Sistem" }}</td>
-                            <td class="p-4 font-bold">{{ log.total_studies }} Studi</td>
-                            <td class="p-4 pr-6">
-                                <span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg
-                                    {% if log.status == 'Success' %}bg-green-50 text-green-600
-                                    {% elif log.status == 'Partial' %}bg-amber-50 text-amber-600
-                                    {% else %}bg-red-50 text-red-600{% endif %}">
-                                    {{ log.status }}
-                                </span>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="4" class="p-8 text-center text-slate-400">Tidak ada log riwayat sinkronisasi.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="max-h-72 overflow-y-auto custom-scrollbar">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <tbody id="syncLogsBody">
+                            {% for log in sync_logs %}
+                            <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                <td class="px-6 py-4 text-[10px] text-slate-400 font-medium whitespace-nowrap">{{ log.created_at|date:"d M Y, H:i" }}</td>
+                                <td class="px-4 py-4 font-bold text-slate-700">{{ log.schedule.name|default:"Manual" }}</td>
+                                <td class="px-4 py-4 font-bold text-slate-700">{{ log.total_studies }}</td>
+                                <td class="px-4 py-4 pr-6">
+                                    <span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg
+                                        {% if log.status == 'Success' %}bg-green-50 text-green-600
+                                        {% elif log.status == 'Partial' %}bg-amber-50 text-amber-600
+                                        {% else %}bg-red-50 text-red-600{% endif %}">
+                                        {{ log.status }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="px-6 py-10 text-center text-slate-400 text-sm">Belum ada riwayat pengiriman.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -146,30 +217,34 @@
 
 {% block scripts %}
 <script>
-    /* Mendaftarkan jadwal sinkronisasi otomatis baru */
+    function toggleTimeFields() {
+        const freq = document.getElementById('schedFrequency').value;
+        document.getElementById('timeFieldsWrapper').style.display = freq === 'hourly' ? 'none' : 'grid';
+    }
+    toggleTimeFields();
+
     async function submitSyncSchedule(e) {
         e.preventDefault();
-        const name = document.getElementById('schedName').value.trim();
-        const frequency = document.getElementById('schedFrequency').value;
-        const device_id = document.getElementById('schedTargetDevice').value;
+        const name            = document.getElementById('schedName').value.trim();
+        const device_id       = document.getElementById('schedTargetDevice').value;
+        const frequency       = document.getElementById('schedFrequency').value;
+        const run_hour        = parseInt(document.getElementById('schedHour').value) || 0;
+        const run_minute      = parseInt(document.getElementById('schedMinute').value) || 0;
+        const modality_filter = document.getElementById('schedModality').value.trim();
 
         const btn = document.getElementById('btnSubmit');
         btn.disabled = true;
         btn.textContent = 'Menyimpan...';
 
         try {
-            const resp = await fetch('{% url "sync_schedules_api" %}', {
+            const r = await fetch('{% url "sync_schedules_api" %}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({ action: 'create', name, frequency, device_id })
+                body: JSON.stringify({ action: 'create', name, device_id, frequency, run_hour, run_minute, modality_filter })
             });
-            const res = await resp.json();
-            if (res.success) {
-                showToast(res.message, 'success');
-                setTimeout(() => window.location.reload(), 1200);
-            } else {
-                showToast(res.message, 'error');
-            }
+            const res = await r.json();
+            showToast(res.message, res.success ? 'success' : 'error');
+            if (res.success) setTimeout(() => location.reload(), 1200);
         } catch (err) {
             showToast('Gagal membuat jadwal.', 'error');
         } finally {
@@ -178,74 +253,79 @@
         }
     }
 
-    /* Mengubah status keaktifan jadwal backup */
+    async function runScheduleNow(schedId, btn) {
+        const icon = btn.querySelector('.run-icon');
+        btn.disabled = true;
+        icon.classList.add('animate-spin');
+        showToast('Memulai pengiriman...', 'info');
+
+        try {
+            const r   = await fetch(`/api/run-schedule/${schedId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            });
+            const res = await r.json();
+            showToast(res.message, res.success ? 'success' : 'error');
+            if (res.success) refreshSyncLogs();
+        } catch (err) {
+            showToast('Koneksi gagal.', 'error');
+        } finally {
+            btn.disabled = false;
+            icon.classList.remove('animate-spin');
+        }
+    }
+
     async function toggleSchedule(schedId) {
         try {
-            const resp = await fetch('{% url "sync_schedules_api" %}', {
+            const r   = await fetch('{% url "sync_schedules_api" %}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
                 body: JSON.stringify({ action: 'toggle', schedule_id: schedId })
             });
-            const res = await resp.json();
-            if (res.success) {
-                showToast(res.message, 'success');
-                setTimeout(() => window.location.reload(), 1000);
-            }
-        } catch (err) {
-            showToast('Koneksi gagal.', 'error');
-        }
+            const res = await r.json();
+            if (res.success) { showToast(res.message, 'success'); setTimeout(() => location.reload(), 1000); }
+        } catch { showToast('Koneksi gagal.', 'error'); }
     }
 
-    /* Menghapus jadwal backup dari sistem */
     async function deleteSchedule(schedId) {
-        if (!confirm('Hapus jadwal backup ini?')) return;
+        if (!confirm('Hapus jadwal ini?')) return;
         try {
-            const resp = await fetch('{% url "sync_schedules_api" %}', {
+            const r   = await fetch('{% url "sync_schedules_api" %}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
                 body: JSON.stringify({ action: 'delete', schedule_id: schedId })
             });
-            const res = await resp.json();
-            if (res.success) {
-                showToast(res.message, 'success');
-                document.getElementById(`card-sched-${schedId}`).remove();
-            }
-        } catch (err) {
-            showToast('Gagal menghapus.', 'error');
-        }
+            const res = await r.json();
+            if (res.success) { showToast(res.message, 'success'); document.getElementById(`card-sched-${schedId}`).remove(); }
+        } catch { showToast('Gagal menghapus.', 'error'); }
     }
 
-    /* Memperbarui log audit pencadangan secara real-time */
     async function refreshSyncLogs() {
+        const icon = document.getElementById('logRefreshIcon');
+        icon.classList.add('animate-spin');
         try {
-            const resp = await fetch('{% url "sync_logs_api" %}');
-            const res = await resp.json();
-            if (res.success) {
-                const tbody = document.getElementById('syncLogsBody');
-                if (res.logs.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-400">Tidak ada log riwayat sinkronisasi.</td></tr>`;
-                    return;
-                }
-                tbody.innerHTML = res.logs.map(log => {
-                    const dt = new Date(log.created_at);
-                    const formattedDate = `${String(dt.getDate()).padStart(2, '0')} ${dt.toLocaleString('id-ID', { month: 'short' })} ${dt.getFullYear()}, ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
-                    let statusClass = 'bg-red-50 text-red-600';
-                    if (log.status === 'Success') statusClass = 'bg-green-50 text-green-600';
-                    else if (log.status === 'Partial') statusClass = 'bg-amber-50 text-amber-600';
-                    return `
-                        <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-all font-medium text-slate-600">
-                            <td class="p-4 pl-6 text-slate-400 font-normal text-[10px]">${formattedDate}</td>
-                            <td class="p-4 font-bold text-slate-800">${log.schedule__name || 'Manual/Sistem'}</td>
-                            <td class="p-4 font-bold">${log.total_studies} Studi</td>
-                            <td class="p-4 pr-6"><span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg ${statusClass}">${log.status}</span></td>
-                        </tr>
-                    `;
-                }).join('');
-                showToast('Log sinkronisasi berhasil diperbarui.', 'success');
+            const r   = await fetch('{% url "sync_logs_api" %}');
+            const res = await r.json();
+            if (!res.success) return;
+            const tbody = document.getElementById('syncLogsBody');
+            if (!res.logs.length) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-10 text-center text-slate-400 text-sm">Belum ada riwayat pengiriman.</td></tr>`;
+                return;
             }
-        } catch (err) {
-            showToast('Gagal memuat log.', 'error');
-        }
+            tbody.innerHTML = res.logs.map(log => {
+                const d = new Date(log.created_at);
+                const fmt = `${String(d.getDate()).padStart(2,'0')} ${d.toLocaleString('id-ID',{month:'short'})} ${d.getFullYear()}, ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                const cls = log.status === 'Success' ? 'bg-green-50 text-green-600' : log.status === 'Partial' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600';
+                return `<tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td class="px-6 py-4 text-[10px] text-slate-400 font-medium whitespace-nowrap">${fmt}</td>
+                    <td class="px-4 py-4 font-bold text-slate-700">${log.schedule__name || 'Manual'}</td>
+                    <td class="px-4 py-4 font-bold text-slate-700">${log.total_studies}</td>
+                    <td class="px-4 py-4 pr-6"><span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg ${cls}">${log.status}</span></td>
+                </tr>`;
+            }).join('');
+            showToast('Log berhasil diperbarui.', 'success');
+        } catch { showToast('Gagal memuat log.', 'error'); }
+        finally { icon.classList.remove('animate-spin'); }
     }
 </script>
 {% endblock %}

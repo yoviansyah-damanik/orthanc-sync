@@ -8,6 +8,8 @@ from bridge.views import api_docs_page_view, api_logs_page_view, api_management_
 from bridge.views import dicom_modify_api, routing_rules_api, sync_schedules_api, routing_logs_api, sync_logs_api
 from bridge.views import upload_logo_view, reset_logo_view
 from bridge.views import sync_modalities_to_orthanc, orthanc_modalities_api, sync_single_device_to_orthanc, sync_modality_to_local
+from bridge.views import orthanc_info_view, orthanc_info_api
+from bridge.views import run_schedule_now
 
 urlpatterns = [
     path('.well-known/appspecific/com.chrome.devtools.json', lambda r: JsonResponse({})),
@@ -52,6 +54,9 @@ urlpatterns = [
     path('api/check-db', check_db_health, name='check_db_health'),
     path('api/test-db', test_db_api, name='test_db_api'),
     path('api/monitoring-chart/', monitoring_chart_api, name='monitoring_chart_api'),
+    path('orthanc-info/', orthanc_info_view, name='orthanc_info_page'),
+    path('api/run-schedule/<str:schedule_id>/', run_schedule_now, name='run_schedule_now'),
+    path('api/orthanc-info/', orthanc_info_api, name='orthanc_info_api'),
     path('configuration/upload-logo', upload_logo_view, name='upload_logo'),
     path('configuration/reset-logo', reset_logo_view, name='reset_logo'),
     path('api/sync-modalities/', sync_modalities_to_orthanc, name='sync_modalities'),

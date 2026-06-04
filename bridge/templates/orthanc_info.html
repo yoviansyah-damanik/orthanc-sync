@@ -1,0 +1,254 @@
+{% extends 'base.html' %}
+{% block title %}Info Orthanc | Orthanc Bridge{% endblock %}
+{% block page_title %}Info Orthanc{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8">
+
+    <!-- Header Actions -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-lg font-bold text-gray-900">Sistem & Plugin Orthanc</h2>
+            <p class="text-xs text-gray-500 mt-0.5">Informasi real-time dari instance Orthanc yang terhubung.</p>
+        </div>
+        <button onclick="loadInfo()" id="refreshBtn"
+            class="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 text-xs font-black uppercase tracking-wider rounded-xl hover:bg-slate-50 card-shadow transition-all">
+            <svg id="refreshIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            Refresh
+        </button>
+    </div>
+
+    <!-- Error State -->
+    <div id="errorState" class="hidden bg-red-50 rounded-[2rem] p-8 border border-red-100">
+        <div class="flex items-start gap-4">
+            <div class="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm font-bold text-red-700">Gagal terhubung ke Orthanc</p>
+                <p class="text-xs text-red-500 mt-1" id="errorMsg"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Skeleton / Loading -->
+    <div id="loadingState" class="space-y-8">
+        <div class="bg-white rounded-[2.5rem] card-shadow p-8 animate-pulse">
+            <div class="h-4 bg-slate-100 rounded-full w-32 mb-6"></div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                {% for i in "12345678" %}<div class="h-16 bg-slate-50 rounded-2xl"></div>{% endfor %}
+            </div>
+        </div>
+        <div class="bg-white rounded-[2.5rem] card-shadow p-8 animate-pulse">
+            <div class="h-4 bg-slate-100 rounded-full w-24 mb-6"></div>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-5">
+                {% for i in "123456" %}<div class="h-28 bg-slate-50 rounded-2xl"></div>{% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content (hidden until loaded) -->
+    <div id="mainContent" class="hidden space-y-8">
+
+        <!-- System Info -->
+        <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
+            <div class="px-10 py-8 flex items-center justify-between border-b border-slate-50">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900">Informasi Sistem</h3>
+                    <p class="text-xs text-gray-500 mt-0.5" id="orthanc-url-display"></p>
+                </div>
+                <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="px-10 py-8">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-5" id="systemGrid"></div>
+            </div>
+        </div>
+
+        <!-- Storage Statistics -->
+        <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
+            <div class="px-10 py-8 flex items-center justify-between border-b border-slate-50">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900">Statistik Penyimpanan</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Jumlah data DICOM yang tersimpan di Orthanc.</p>
+                </div>
+                <div class="w-12 h-12 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.58 4 8 4s8-1.79 8-4M4 7c0-2.21 3.58-4 8-4s8 1.79 8 4m0 5c0 2.21-3.58 4-8 4s-8-1.79-8-4"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="px-10 py-8">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-5" id="statsGrid"></div>
+            </div>
+        </div>
+
+        <!-- Plugins -->
+        <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
+            <div class="px-10 py-8 flex items-center justify-between border-b border-slate-50">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900">Plugin Aktif</h3>
+                    <p class="text-xs text-gray-500 mt-0.5" id="pluginCount"></p>
+                </div>
+                <div class="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="px-10 py-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="pluginsGrid"></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function formatBytes(bytes) {
+        if (!bytes || bytes === 0) return '0 B';
+        const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function statCard(label, value, sub = '', colorClass = 'bg-blue-50 text-blue-600') {
+        return `
+            <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100/50 group hover:bg-white hover:shadow-md transition-all duration-300">
+                <div class="w-9 h-9 ${colorClass} rounded-xl flex items-center justify-center mb-3 text-sm font-black">${sub || '—'}</div>
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">${label}</p>
+                <p class="text-sm font-black text-slate-800 leading-tight break-all">${value || '-'}</p>
+            </div>`;
+    }
+
+    function infoCard(label, value, icon, colorClass = 'bg-blue-50 text-blue-600') {
+        return `
+            <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100/50 group hover:bg-white hover:shadow-md transition-all duration-300">
+                <div class="w-9 h-9 ${colorClass} rounded-xl flex items-center justify-center mb-3">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icon}</svg>
+                </div>
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">${label}</p>
+                <p class="text-sm font-black text-slate-800 leading-tight break-all">${value || '-'}</p>
+            </div>`;
+    }
+
+    async function loadInfo() {
+        const refreshIcon = document.getElementById('refreshIcon');
+        const loading     = document.getElementById('loadingState');
+        const main        = document.getElementById('mainContent');
+        const errorState  = document.getElementById('errorState');
+
+        refreshIcon.classList.add('animate-spin');
+        loading.classList.remove('hidden');
+        main.classList.add('hidden');
+        errorState.classList.add('hidden');
+
+        try {
+            const r    = await fetch("{% url 'orthanc_info_api' %}");
+            const data = await r.json();
+
+            if (!data.success) {
+                document.getElementById('errorMsg').textContent = data.message;
+                errorState.classList.remove('hidden');
+                loading.classList.add('hidden');
+                return;
+            }
+
+            const s = data.system;
+            const st = data.statistics;
+
+            document.getElementById('orthanc-url-display').textContent = data.orthanc_url;
+
+            // ── System Info Grid ──
+            const iconServer  = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>';
+            const iconDicom   = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"></path>';
+            const iconPort    = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>';
+            const iconStorage = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.58 4 8 4s8-1.79 8-4M4 7c0-2.21 3.58-4 8-4s8 1.79 8 4"></path>';
+            const iconCheck   = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
+            const iconDB      = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.58 4 8 4s8-1.79 8-4M4 7c0-2.21 3.58-4 8-4s8 1.79 8 4m0 5c0 2.21-3.58 4-8 4s-8-1.79-8-4"></path>';
+
+            document.getElementById('systemGrid').innerHTML = [
+                infoCard('Versi Orthanc',    s.Version,                                       iconServer,  'bg-blue-50 text-blue-600'),
+                infoCard('Nama Instance',    s.Name || 'Orthanc',                             iconServer,  'bg-indigo-50 text-indigo-600'),
+                infoCard('DICOM AE Title',   s.DicomAet,                                      iconDicom,   'bg-teal-50 text-teal-600'),
+                infoCard('HTTP Port',        s.HttpPort,                                      iconPort,    'bg-cyan-50 text-cyan-600'),
+                infoCard('DICOM Port',       s.DicomPort,                                     iconPort,    'bg-sky-50 text-sky-600'),
+                infoCard('Storage Plugin',   s.StorageAreaPlugin || 'Default (filesystem)',   iconStorage, 'bg-amber-50 text-amber-600'),
+                infoCard('Database Plugin',  s.DatabaseBackendPlugin || 'Default (SQLite)',   iconDB,      'bg-orange-50 text-orange-600'),
+                infoCard('DICOM TLS',        s.DicomTlsEnabled ? 'Aktif' : 'Tidak Aktif',    iconCheck,   s.DicomTlsEnabled ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-400'),
+            ].join('');
+
+            // ── Storage Statistics ──
+            const iconPatients = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path>';
+            const iconStudy    = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>';
+            const iconSeries   = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>';
+            const iconInstance = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>';
+            const iconDisk     = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>';
+
+            const diskTotal = st.TotalDiskSizeMB ? formatBytes(st.TotalDiskSizeMB * 1024 * 1024) : (st.TotalDiskSize ? formatBytes(st.TotalDiskSize) : '-');
+            const uncompressed = st.TotalUncompressedSizeMB ? formatBytes(st.TotalUncompressedSizeMB * 1024 * 1024) : (st.TotalUncompressedSize ? formatBytes(st.TotalUncompressedSize) : '-');
+
+            document.getElementById('statsGrid').innerHTML = [
+                infoCard('Pasien',         (st.CountPatients    || 0).toLocaleString(), iconPatients, 'bg-blue-50 text-blue-600'),
+                infoCard('Study',          (st.CountStudies     || 0).toLocaleString(), iconStudy,    'bg-indigo-50 text-indigo-600'),
+                infoCard('Series',         (st.CountSeries      || 0).toLocaleString(), iconSeries,   'bg-teal-50 text-teal-600'),
+                infoCard('Instance',       (st.CountInstances   || 0).toLocaleString(), iconInstance, 'bg-cyan-50 text-cyan-600'),
+                infoCard('Ukuran Disk',    diskTotal,                                   iconDisk,     'bg-amber-50 text-amber-600'),
+                infoCard('Uncompressed',   uncompressed,                                iconDisk,     'bg-orange-50 text-orange-600'),
+            ].join('');
+
+            // ── Plugins ──
+            document.getElementById('pluginCount').textContent = `${data.plugins.length} plugin terinstall`;
+            document.getElementById('pluginsGrid').innerHTML = data.plugins.length
+                ? data.plugins.map(p => {
+                    const hasUI = !!p.root_uri;
+                    return `
+                        <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100/50 hover:bg-white hover:shadow-md transition-all duration-300 flex flex-col justify-between gap-4">
+                            <div>
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path>
+                                        </svg>
+                                    </div>
+                                    <span class="text-[10px] font-mono font-bold bg-purple-50 text-purple-600 border border-purple-100/50 px-2.5 py-1 rounded-lg">v${p.version}</span>
+                                </div>
+                                <h4 class="text-sm font-black text-slate-800 mb-1">${p.id}</h4>
+                                <p class="text-xs text-slate-400 font-medium leading-relaxed line-clamp-2">${p.description || 'Tidak ada deskripsi.'}</p>
+                            </div>
+                            ${hasUI ? `
+                            <a href="${data.orthanc_url}${p.root_uri}" target="_blank" rel="noopener"
+                                class="flex items-center justify-center gap-1.5 py-2 bg-purple-50 text-purple-700 rounded-xl hover:bg-purple-100 transition-colors text-xs font-bold">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                </svg>
+                                Buka UI Plugin
+                            </a>` : `<div class="py-2 text-center text-[10px] font-bold text-slate-300 uppercase tracking-wider">Tidak ada UI</div>`}
+                        </div>`;
+                }).join('')
+                : `<div class="col-span-3 text-center py-12 text-slate-400 text-sm font-medium">Tidak ada plugin yang terinstall.</div>`;
+
+            loading.classList.add('hidden');
+            main.classList.remove('hidden');
+
+        } catch (e) {
+            document.getElementById('errorMsg').textContent = 'Terjadi kesalahan: ' + e;
+            errorState.classList.remove('hidden');
+            loading.classList.add('hidden');
+        } finally {
+            refreshIcon.classList.remove('animate-spin');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadInfo);
+</script>
+{% endblock %}
