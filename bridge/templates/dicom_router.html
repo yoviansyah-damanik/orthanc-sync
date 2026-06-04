@@ -209,19 +209,8 @@ Bridge{% endblock %} {% block page_title %}DICOM Router & Otomasi{% endblock %}
         <div>
           <div class="flex items-start justify-between mb-4">
             <div class="flex items-center gap-2">
-              <span
-                class="w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-{{ device.id }} 
-                                {% if device.status == 'online' %}bg-green-500 animate-pulse shadow-sm shadow-green-500/50
-                                {% elif device.status == 'offline' %}bg-red-500
-                                {% else %}bg-amber-400{% endif %}"
-              >
-              </span>
-              <span
-                class="status-text-{{ device.id }} text-xs font-black uppercase tracking-widest text-slate-500"
-              >
-                {% if device.status == 'online' %}Online {% elif device.status
-                == 'offline' %}Offline {% else %}Unverified{% endif %}
-              </span>
+              <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-{{ device.id }} {% if device.status == 'online' %}bg-green-500 animate-pulse shadow-sm shadow-green-500/50{% elif device.status == 'offline' %}bg-red-500{% else %}bg-amber-400{% endif %}"></span>
+              <span class="status-text-{{ device.id }} text-xs font-black uppercase tracking-widest text-slate-500">{% if device.status == 'online' %}Online{% elif device.status == 'offline' %}Offline{% else %}Unverified{% endif %}</span>
             </div>
             <span
               class="text-[10px] font-mono font-bold bg-blue-50 text-blue-600 border border-blue-100/50 px-2.5 py-1 rounded-lg"
