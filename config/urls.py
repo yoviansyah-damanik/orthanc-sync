@@ -1,13 +1,16 @@
 from django.contrib import admin
 from django.urls import path
+from django.http import JsonResponse
 from django.conf import settings
 from django.conf.urls.static import static
 from bridge.views import api_docs_page_view, api_logs_page_view, api_management_view, check_db_health, configuration_view, create_worklist_api, dashboard_view, database_setup_page, fix_folder_permissions, health_check_api, login_view, logout_view, profile_view, run_database_setup, test_db_api, test_orthanc_connection, worklist_detail_api, worklist_page_view, worklist_history_view, check_orthanc_study_api, check_worklist_file_api, user_guide_page_view, monitoring_view, monitoring_chart_api, dicom_scanner_view, dicom_scan_api, dicom_verify_api, dicom_register_api, dicom_delete_api, dicom_router_view, scheduled_backup_view, all_studies_view, orthanc_studies_api, orthanc_study_detail_api, dicom_transfer_api
 
 from bridge.views import dicom_modify_api, routing_rules_api, sync_schedules_api, routing_logs_api, sync_logs_api
 from bridge.views import upload_logo_view, reset_logo_view
+from bridge.views import sync_modalities_to_orthanc, orthanc_modalities_api, sync_single_device_to_orthanc, sync_modality_to_local
 
 urlpatterns = [
+    path('.well-known/appspecific/com.chrome.devtools.json', lambda r: JsonResponse({})),
     path('admin/', admin.site.urls),
     path('', dashboard_view, name='dashboard'),
     path('login/', login_view, name='login'),
@@ -51,6 +54,10 @@ urlpatterns = [
     path('api/monitoring-chart/', monitoring_chart_api, name='monitoring_chart_api'),
     path('configuration/upload-logo', upload_logo_view, name='upload_logo'),
     path('configuration/reset-logo', reset_logo_view, name='reset_logo'),
+    path('api/sync-modalities/', sync_modalities_to_orthanc, name='sync_modalities'),
+    path('api/sync-modalities/<str:device_id>/', sync_single_device_to_orthanc, name='sync_single_modality'),
+    path('api/orthanc-modalities/', orthanc_modalities_api, name='orthanc_modalities_api'),
+    path('api/sync-modality-to-local/', sync_modality_to_local, name='sync_modality_to_local'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 handler404 = 'bridge.views.error_404_view'

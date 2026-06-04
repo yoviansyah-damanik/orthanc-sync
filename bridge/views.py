@@ -778,6 +778,8 @@ def configuration_view(request):
             config, created = SystemConfig.objects.get_or_create(key=key)
             config.value = value
             config.save()
+        from django.core.cache import cache
+        cache.delete_many(['ctx_orthanc_creds', 'ctx_orthanc_status'])
         messages.success(request, "Konfigurasi berhasil diperbarui")
         return redirect('configuration_page')
 
@@ -1995,6 +1997,193 @@ def sync_logs_api(request):
     return JsonResponse({"success": True, "logs": logs})
 
 
+@login_required
+@require_http_methods(["POST"])
+def sync_single_device_to_orthanc(request, device_id):
+    """Mendaftarkan satu DicomDevice ke Orthanc sebagai modality."""
+    url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+    user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+    pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+
+    try:
+        device = DicomDevice.objects.get(id=device_id)
+    except DicomDevice.DoesNotExist:
+        return JsonResponse({"success": False, "message": "Perangkat tidak ditemukan."}, status=404)
+
+    symbolic_name = f"device_{device.id.hex}"
+    payload = {
+        "AET":        device.ae_title or "UNKNOWN",
+        "Host":       device.host,
+        "Port":       int(device.port),
+        "Manufacturer": "Generic",
+        "AllowEcho":  True,
+        "AllowStore": True,
+    }
+    try:
+        r = requests.put(
+            f"{url.rstrip('/')}/modalities/{symbolic_name}",
+            auth=(user, pw), json=payload, timeout=5
+        )
+        if r.status_code in (200, 201):
+            return JsonResponse({"success": True, "message": f"'{device.name}' berhasil disinkronkan ke Orthanc."})
+        return JsonResponse({"success": False, "message": f"Orthanc error {r.status_code}: {r.text}"})
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def sync_modality_to_local(request):
+    """Menyimpan modality dari Orthanc ke tabel DicomDevice lokal."""
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"success": False, "message": "Body tidak valid."}, status=400)
+
+    name = str(data.get("name", "")).strip()
+    aet  = str(data.get("aet", "")).strip()
+    host = str(data.get("host", "")).strip()
+    port = int(data.get("port", 104))
+    mfr  = str(data.get("manufacturer", "Generic")).strip()
+
+    if not host:
+        return JsonResponse({"success": False, "message": "Host IP tidak tersedia pada modality ini."}, status=400)
+
+    device, created = DicomDevice.objects.get_or_create(
+        host=host, port=port,
+        defaults={
+            "name":        name,
+            "ae_title":    aet,
+            "description": f"Disinkronkan dari Orthanc modality '{name}'. Manufacturer: {mfr}",
+            "status":      "unverified",
+        }
+    )
+    if not created:
+        device.name     = name
+        device.ae_title = aet
+        device.save()
+
+    action = "ditambahkan" if created else "diperbarui"
+    return JsonResponse({"success": True, "message": f"Modality '{name}' berhasil {action} ke DICOM Nodes lokal."})
+
+
+@login_required
+@require_http_methods(["POST"])
+def sync_modalities_to_orthanc(request):
+    """Mendaftarkan semua DicomDevice ke Orthanc sebagai modalities via REST API."""
+    url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+    user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+    pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+    clean_url = url.rstrip('/')
+
+    devices = DicomDevice.objects.all()
+    success_count = 0
+    failed = []
+
+    for device in devices:
+        symbolic_name = f"device_{device.id.hex}"
+        payload = {
+            "AET": device.ae_title or "UNKNOWN",
+            "Host": device.host,
+            "Port": int(device.port),
+            "Manufacturer": "Generic",
+            "AllowEcho": True,
+            "AllowStore": True,
+        }
+        try:
+            r = requests.put(
+                f"{clean_url}/modalities/{symbolic_name}",
+                auth=(user, pw),
+                json=payload,
+                timeout=5
+            )
+            if r.status_code in (200, 201):
+                success_count += 1
+            else:
+                failed.append(f"{device.name} (HTTP {r.status_code})")
+        except Exception as e:
+            failed.append(f"{device.name} ({str(e)})")
+
+    if failed:
+        return JsonResponse({
+            "success": False,
+            "message": f"{success_count} berhasil, {len(failed)} gagal: {', '.join(failed)}"
+        })
+    return JsonResponse({
+        "success": True,
+        "message": f"Berhasil sinkronisasi {success_count} perangkat ke Orthanc."
+    })
+
+
+@login_required
+def orthanc_modalities_api(request):
+    """CRUD modalities langsung ke Orthanc REST API."""
+    url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+    user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+    pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+    clean_url = url.rstrip('/')
+
+    if request.method == "GET":
+        try:
+            r = requests.get(f"{clean_url}/modalities?expand", auth=(user, pw), timeout=5)
+            if r.status_code == 200:
+                raw = r.json()
+                modalities = [
+                    {"name": name, **data}
+                    for name, data in raw.items()
+                ]
+                return JsonResponse({"success": True, "modalities": modalities})
+            return JsonResponse({"success": False, "message": f"Orthanc merespon {r.status_code}"}, status=502)
+        except Exception as e:
+            return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"success": False, "message": "Body tidak valid."}, status=400)
+
+    action = data.get("action")
+
+    if action in ("create", "update"):
+        name = str(data.get("name", "")).strip()
+        if not name:
+            return JsonResponse({"success": False, "message": "Nama modality wajib diisi."}, status=400)
+        payload = {
+            "AET":          str(data.get("aet", "")).strip() or name.upper(),
+            "Host":         str(data.get("host", "")).strip(),
+            "Port":         int(data.get("port", 104)),
+            "Manufacturer": str(data.get("manufacturer", "Generic")).strip(),
+            "AllowEcho":    bool(data.get("allow_echo", True)),
+            "AllowStore":   bool(data.get("allow_store", True)),
+        }
+        if not payload["Host"]:
+            return JsonResponse({"success": False, "message": "Host IP wajib diisi."}, status=400)
+        try:
+            r = requests.put(
+                f"{clean_url}/modalities/{name}",
+                auth=(user, pw), json=payload, timeout=5
+            )
+            if r.status_code in (200, 201):
+                return JsonResponse({"success": True, "message": f"Modality '{name}' berhasil disimpan."})
+            return JsonResponse({"success": False, "message": f"Orthanc error: {r.text}"}, status=500)
+        except Exception as e:
+            return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+    if action == "delete":
+        name = str(data.get("name", "")).strip()
+        if not name:
+            return JsonResponse({"success": False, "message": "Nama modality wajib diisi."}, status=400)
+        try:
+            r = requests.delete(f"{clean_url}/modalities/{name}", auth=(user, pw), timeout=5)
+            if r.status_code in (200, 204):
+                return JsonResponse({"success": True, "message": f"Modality '{name}' berhasil dihapus."})
+            return JsonResponse({"success": False, "message": f"Orthanc error: {r.text}"}, status=500)
+        except Exception as e:
+            return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+    return JsonResponse({"success": False, "message": "Aksi tidak valid."}, status=400)
+
+
 def error_404_view(request, exception):
     return render(request, '404.html', status=404)
 
@@ -2040,6 +2229,8 @@ def upload_logo_view(request):
         key='CUSTOM_LOGO_PATH',
         defaults={'value': f'branding/logo-icon{ext}', 'description': 'Path logo kustom relatif dari MEDIA_ROOT'}
     )
+    from django.core.cache import cache
+    cache.delete('ctx_logo_url')
 
     messages.success(request, "Logo berhasil diperbarui.")
     return redirect('configuration_page')
@@ -2058,6 +2249,9 @@ def reset_logo_view(request):
         config.delete()
     except SystemConfig.DoesNotExist:
         pass
+
+    from django.core.cache import cache
+    cache.delete('ctx_logo_url')
 
     messages.success(request, "Logo berhasil direset ke default.")
     return redirect('configuration_page')

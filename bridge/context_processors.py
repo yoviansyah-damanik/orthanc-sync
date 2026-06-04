@@ -3,50 +3,67 @@ import requests
 from django.utils import timezone
 from django.db import OperationalError
 from django.conf import settings
+from django.core.cache import cache
 from .models import SystemConfig
+
+# TTL cache (detik)
+_ORTHANC_STATUS_TTL = 15   # status koneksi: refresh setiap 15 detik
+_ORTHANC_CREDS_TTL  = 120  # kredensial Orthanc: jarang berubah
+_LOGO_TTL           = 120  # logo: jarang berubah
 
 def orthanc_status(request):
     """
     Context processor untuk mengecek status koneksi Orthanc di setiap halaman.
-    Menggunakan cache sederhana agar tidak memperlambat loading.
+    Hasil di-cache agar tidak ada HTTP request + DB query di setiap page load.
     """
-    # Tentukan URL logo: gunakan kustom jika ada, fallback ke static default
-    logo_url = None
-    try:
-        custom_logo = SystemConfig.objects.get(key='CUSTOM_LOGO_PATH')
-        logo_url = settings.MEDIA_URL + custom_logo.value
-    except (SystemConfig.DoesNotExist, Exception):
-        pass
+    # Logo URL — cache 120 detik, hanya 1 DB query tiap 2 menit
+    logo_url = cache.get('ctx_logo_url', '__unset__')
+    if logo_url == '__unset__':
+        logo_url = None
+        try:
+            custom_logo = SystemConfig.objects.get(key='CUSTOM_LOGO_PATH')
+            logo_url = settings.MEDIA_URL + custom_logo.value
+        except (SystemConfig.DoesNotExist, Exception):
+            pass
+        cache.set('ctx_logo_url', logo_url, _LOGO_TTL)
 
     context = {
-        'app_name': os.getenv('APP_NAME', 'Orthanc Bridge'),
+        'app_name':      os.getenv('APP_NAME', 'Orthanc Bridge'),
         'hospital_name': os.getenv('HOSPITAL_NAME', 'Rumah Sakit'),
-        'current_year': timezone.now().year,
-        'logo_url': logo_url,
+        'current_year':  timezone.now().year,
+        'logo_url':      logo_url,
     }
 
     if not request.user.is_authenticated:
         return context
 
-    try:
-        url = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
-        user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
-        password = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
-        
-        status = "offline"
-        # Timeout sangat singkat agar tidak mengganggu UX
-        response = requests.get(
-            f"{url.rstrip('/')}/system",
-            auth=(user, password),
-            timeout=0.5 
-        )
-        if response.status_code == 200:
-            status = "online"
-        context['orthanc_status'] = status
-    except:
-        # Jika DB belum ada (SystemConfig fails) atau Orthanc offline
-        context['orthanc_status'] = "offline"
-        
+    # Status Orthanc — cache 15 detik agar tidak ada HTTP request tiap halaman
+    orthanc_status_val = cache.get('ctx_orthanc_status')
+    if orthanc_status_val is None:
+        orthanc_status_val = "offline"
+        try:
+            # Ambil kredensial — cache 120 detik, batasi DB query
+            creds = cache.get('ctx_orthanc_creds')
+            if creds is None:
+                creds = {
+                    'url':  SystemConfig.get_val('ORTHANC_URL',  'http://localhost:8042'),
+                    'user': SystemConfig.get_val('ORTHANC_USER', 'orthanc'),
+                    'pass': SystemConfig.get_val('ORTHANC_PASS', 'orthanc'),
+                }
+                cache.set('ctx_orthanc_creds', creds, _ORTHANC_CREDS_TTL)
+
+            response = requests.get(
+                f"{creds['url'].rstrip('/')}/system",
+                auth=(creds['user'], creds['pass']),
+                timeout=0.5
+            )
+            if response.status_code == 200:
+                orthanc_status_val = "online"
+        except Exception:
+            pass
+        cache.set('ctx_orthanc_status', orthanc_status_val, _ORTHANC_STATUS_TTL)
+
+    context['orthanc_status'] = orthanc_status_val
     return context
 def sidebar_data(request):
     """

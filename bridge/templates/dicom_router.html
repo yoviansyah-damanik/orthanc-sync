@@ -1,547 +1,1397 @@
-{% extends 'base.html' %}
-{% block title %}DICOM Router & Otomasi | Orthanc Bridge{% endblock %}
-{% block page_title %}DICOM Router & Otomasi{% endblock %}
-
+{% extends 'base.html' %} {% block title %}DICOM Router & Otomasi | Orthanc
+Bridge{% endblock %} {% block page_title %}DICOM Router & Otomasi{% endblock %}
 {% block content %}
 <!-- Tab Navigation Menu -->
-<div class="flex items-center gap-2 mb-8 bg-slate-100 p-1.5 rounded-2xl w-fit border border-slate-200/50">
-    <button onclick="switchTab('nodes')" id="tabBtn-nodes" 
-        class="tab-btn px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 bg-white text-slate-800 shadow-sm border border-slate-200/20">
-        DICOM Nodes
-    </button>
-    <button onclick="switchTab('routing')" id="tabBtn-routing" 
-        class="tab-btn px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 text-slate-500 hover:text-slate-700">
-        Auto-Routing
-    </button>
+<div
+  class="flex items-center gap-2 mb-8 bg-slate-100 p-1.5 rounded-2xl w-fit border border-slate-200/50"
+>
+  <button
+    onclick="switchTab('nodes')"
+    id="tabBtn-nodes"
+    class="tab-btn px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 bg-white text-slate-800 shadow-sm border border-slate-200/20"
+  >
+    DICOM Nodes
+  </button>
+  <button
+    onclick="switchTab('routing')"
+    id="tabBtn-routing"
+    class="tab-btn px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 text-slate-500 hover:text-slate-700"
+  >
+    Auto-Routing
+  </button>
+  <button
+    onclick="
+      switchTab('modalities');
+      loadOrthanModalities();
+    "
+    id="tabBtn-modalities"
+    class="tab-btn px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 text-slate-500 hover:text-slate-700"
+  >
+    Modalities Orthanc
+  </button>
 </div>
 
 <!-- ==================== TAB 1: DICOM NODES ==================== -->
-<div id="tabContent-nodes" class="tab-pane grid grid-cols-1 lg:grid-cols-3 gap-8">
-    <!-- Kolom Kiri: Form Tambah/Ubah Perangkat Manual -->
-    <div class="lg:col-span-1">
-        <div class="bg-white p-8 rounded-[2rem] card-shadow border border-slate-100">
-            <div class="flex items-center gap-3 mb-2">
-                <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-                    <svg class="w-5 h-5" id="formIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                </div>
-                <h3 class="text-base font-bold text-gray-900" id="formTitle">Tambah Perangkat DICOM</h3>
-            </div>
-            <p class="text-xs text-gray-500 mb-6" id="formSubtitle">Daftarkan target peer/node DICOM baru secara manual.</p>
-
-            <form id="formDevice" onsubmit="submitForm(event)" class="space-y-4">
-                <input type="hidden" id="deviceId" value="">
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Nama Perangkat *</label>
-                    <input type="text" id="deviceName" required placeholder="Contoh: USG Radiologi 1"
-                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-blue-500/20">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Host IP Address *</label>
-                    <input type="text" id="deviceHost" required placeholder="Contoh: 192.168.1.100"
-                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-blue-500/20 font-mono">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">DICOM Port *</label>
-                    <input type="number" id="devicePort" required placeholder="Default: 104" value="104"
-                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-blue-500/20">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">DICOM AE Title *</label>
-                    <input type="text" id="deviceAeTitle" required placeholder="Contoh: RADIOLOGY_PACS"
-                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-blue-500/20 font-mono">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Deskripsi</label>
-                    <textarea id="deviceDescription" rows="3" placeholder="Contoh: USG Siemens Lantai 2"
-                        class="w-full px-5 py-3 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-blue-500/20 resize-none"></textarea>
-                </div>
-
-                <div class="flex gap-3 pt-2">
-                    <button type="button" id="btnCancelEdit" onclick="resetForm()"
-                        class="flex-1 py-4 bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-all hidden">
-                        Batal
-                    </button>
-                    <button type="submit" id="btnSubmit"
-                        class="flex-[2] py-4 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 transition-all">
-                        Simpan Perangkat
-                    </button>
-                </div>
-            </form>
+<div
+  id="tabContent-nodes"
+  class="tab-pane grid grid-cols-1 lg:grid-cols-3 gap-8"
+>
+  <!-- Kolom Kiri: Form Tambah/Ubah Perangkat Manual -->
+  <div class="lg:col-span-1">
+    <div
+      class="bg-white p-8 rounded-[2rem] card-shadow border border-slate-100"
+    >
+      <div class="flex items-center gap-3 mb-2">
+        <div
+          class="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center"
+        >
+          <svg
+            class="w-5 h-5"
+            id="formIcon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
+            ></path>
+          </svg>
         </div>
+        <h3 class="text-base font-bold text-gray-900" id="formTitle">
+          Tambah Perangkat DICOM
+        </h3>
+      </div>
+      <p class="text-xs text-gray-500 mb-6" id="formSubtitle">
+        Daftarkan target peer/node DICOM baru secara manual.
+      </p>
+
+      <form id="formDevice" onsubmit="submitForm(event)" class="space-y-4">
+        <input type="hidden" id="deviceId" value="" />
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >Nama Perangkat *</label
+          >
+          <input
+            type="text"
+            id="deviceName"
+            required
+            placeholder="Contoh: USG Radiologi 1"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-blue-500/20"
+          />
+        </div>
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >Host IP Address *</label
+          >
+          <input
+            type="text"
+            id="deviceHost"
+            required
+            placeholder="Contoh: 192.168.1.100"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-blue-500/20 font-mono"
+          />
+        </div>
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >DICOM Port *</label
+          >
+          <input
+            type="number"
+            id="devicePort"
+            required
+            placeholder="Default: 104"
+            value="104"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-blue-500/20"
+          />
+        </div>
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >DICOM AE Title *</label
+          >
+          <input
+            type="text"
+            id="deviceAeTitle"
+            required
+            placeholder="Contoh: RADIOLOGY_PACS"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-blue-500/20 font-mono"
+          />
+        </div>
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >Deskripsi</label
+          >
+          <textarea
+            id="deviceDescription"
+            rows="3"
+            placeholder="Contoh: USG Siemens Lantai 2"
+            class="w-full px-5 py-3 bg-slate-50 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-blue-500/20 resize-none"
+          ></textarea>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+          <button
+            type="button"
+            id="btnCancelEdit"
+            onclick="resetForm()"
+            class="flex-1 py-4 bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-all hidden"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            id="btnSubmit"
+            class="flex-[2] py-4 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+          >
+            Simpan Perangkat
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Kolom Kanan: Daftar Perangkat -->
+  <div class="lg:col-span-2">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h3 class="text-lg font-bold text-gray-900">
+          Perangkat DICOM Router Terdaftar
+        </h3>
+        <p class="text-xs text-gray-500 mt-1">
+          Daftar node PACS/Modality peer yang didaftarkan untuk integrasi
+          jaringan.
+        </p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span
+          class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl"
+          id="badgeCount"
+        >
+          {{ devices.count }} Total Node
+        </span>
+        <button
+          onclick="syncToOrthanc()"
+          id="syncBtn"
+          class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all"
+        >
+          <svg
+            id="syncIcon"
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            ></path>
+          </svg>
+          Sync ke Orthanc
+        </button>
+      </div>
     </div>
 
-    <!-- Kolom Kanan: Daftar Perangkat -->
-    <div class="lg:col-span-2">
-        <div class="flex items-center justify-between mb-6">
-            <div>
-                <h3 class="text-lg font-bold text-gray-900">Perangkat DICOM Router Terdaftar</h3>
-                <p class="text-xs text-gray-500 mt-1">Daftar node PACS/Modality peer yang didaftarkan untuk integrasi jaringan.</p>
-            </div>
-            <span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl" id="badgeCount">
-                {{ devices.count }} Total Node
-            </span>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="deviceListGrid">
-            {% for device in devices %}
-            <div class="bg-white rounded-[2rem] p-8 card-shadow group hover:shadow-2xl hover:shadow-blue-500/5 border border-slate-50 transition-all duration-300 relative overflow-hidden flex flex-col justify-between" id="card-device-{{ device.id }}">
-                <div>
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-{{ device.id }} 
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="deviceListGrid">
+      {% for device in devices %}
+      <div
+        class="bg-white rounded-[2rem] p-8 card-shadow group hover:shadow-2xl hover:shadow-blue-500/5 border border-slate-50 transition-all duration-300 relative overflow-hidden flex flex-col justify-between"
+        id="card-device-{{ device.id }}"
+      >
+        <div>
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span
+                class="w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-{{ device.id }} 
                                 {% if device.status == 'online' %}bg-green-500 animate-pulse shadow-sm shadow-green-500/50
                                 {% elif device.status == 'offline' %}bg-red-500
-                                {% else %}bg-amber-400{% endif %}">
-                            </span>
-                            <span class="status-text-{{ device.id }} text-xs font-black uppercase tracking-widest text-slate-500">
-                                {% if device.status == 'online' %}Online
-                                {% elif device.status == 'offline' %}Offline
-                                {% else %}Unverified{% endif %}
-                            </span>
-                        </div>
-                        <span class="text-[10px] font-mono font-bold bg-blue-50 text-blue-600 border border-blue-100/50 px-2.5 py-1 rounded-lg">
-                            AE: {{ device.ae_title }}
-                        </span>
-                    </div>
-
-                    <h4 class="text-base font-bold text-gray-900 truncate mb-1" id="name-display-{{ device.id }}">{{ device.name }}</h4>
-                    <p class="text-xs text-slate-400 font-medium mb-4 h-8 line-clamp-2" id="desc-display-{{ device.id }}">
-                        {{ device.description|default:"Tidak ada deskripsi perangkat." }}
-                    </p>
-
-                    <div class="bg-slate-50 rounded-2xl p-4 space-y-2 border border-slate-100/50 text-xs text-slate-600 mb-6">
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Host IP:</span>
-                            <span class="font-mono font-semibold" id="host-display-{{ device.id }}">{{ device.host }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">DICOM Port:</span>
-                            <span class="font-semibold" id="port-display-{{ device.id }}">{{ device.port }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Last Verified:</span>
-                            <span class="font-medium text-[10px] text-slate-500 status-time-{{ device.id }}">
-                                {{ device.last_checked|date:"d M Y, H:i"|default:"Belum pernah diuji" }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex gap-2.5 pt-4 border-t border-slate-100">
-                    <button onclick="verifyDevice('{{ device.id }}', '{{ device.host }}', '{{ device.port }}', '{{ device.ae_title }}')"
-                        class="flex-1 py-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 hover:text-blue-700 transition-colors shadow-sm text-xs font-bold flex items-center justify-center gap-1.5">
-                        <svg class="w-4 h-4 icon-verify-{{ device.id }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                        </svg>
-                        Test Ping
-                    </button>
-                    <button onclick="editDevice('{{ device.id }}', '{{ device.name }}', '{{ device.host }}', '{{ device.port }}', '{{ device.ae_title }}', '{{ device.description }}')"
-                        class="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors shadow-sm">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                        </svg>
-                    </button>
-                    <button onclick="deleteDevice('{{ device.id }}', '{{ device.name }}')"
-                        class="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-colors shadow-sm">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                    </button>
-                </div>
+                                {% else %}bg-amber-400{% endif %}"
+              >
+              </span>
+              <span
+                class="status-text-{{ device.id }} text-xs font-black uppercase tracking-widest text-slate-500"
+              >
+                {% if device.status == 'online' %}Online {% elif device.status
+                == 'offline' %}Offline {% else %}Unverified{% endif %}
+              </span>
             </div>
-            {% empty %}
-            <div class="col-span-2 bg-white rounded-[2rem] p-12 text-center text-sm text-slate-400 card-shadow border border-slate-100">
-                <h4 class="text-base font-bold text-gray-800 mb-1">Belum Ada Node Terdaftar</h4>
-                <p class="text-xs text-gray-500 max-w-sm mx-auto">Silakan tambahkan perangkat DICOM secara manual.</p>
+            <span
+              class="text-[10px] font-mono font-bold bg-blue-50 text-blue-600 border border-blue-100/50 px-2.5 py-1 rounded-lg"
+            >
+              AE: {{ device.ae_title }}
+            </span>
+          </div>
+
+          <h4
+            class="text-base font-bold text-gray-900 truncate mb-1"
+            id="name-display-{{ device.id }}"
+          >
+            {{ device.name }}
+          </h4>
+          <p
+            class="text-xs text-slate-400 font-medium mb-4 h-8 line-clamp-2"
+            id="desc-display-{{ device.id }}"
+          >
+            {{ device.description|default:"Tidak ada deskripsi perangkat." }}
+          </p>
+
+          <div
+            class="bg-slate-50 rounded-2xl p-4 space-y-2 border border-slate-100/50 text-xs text-slate-600 mb-6"
+          >
+            <div class="flex justify-between">
+              <span class="text-slate-400">Host IP:</span>
+              <span
+                class="font-mono font-semibold"
+                id="host-display-{{ device.id }}"
+                >{{ device.host }}</span
+              >
             </div>
-            {% endfor %}
+            <div class="flex justify-between">
+              <span class="text-slate-400">DICOM Port:</span>
+              <span class="font-semibold" id="port-display-{{ device.id }}"
+                >{{ device.port }}</span
+              >
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400">Last Verified:</span>
+              <span
+                class="font-medium text-[10px] text-slate-500 status-time-{{ device.id }}"
+              >
+                {{ device.last_checked|date:"d M Y, H:i"|default:"Belum pernah diuji" }}
+              </span>
+            </div>
+          </div>
         </div>
+
+        <div class="flex gap-2.5 pt-4 border-t border-slate-100">
+          <button
+            onclick="verifyDevice('{{ device.id }}', '{{ device.host }}', '{{ device.port }}', '{{ device.ae_title }}')"
+            class="flex-1 py-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 hover:text-blue-700 transition-colors shadow-sm text-xs font-bold flex items-center justify-center gap-1.5"
+          >
+            <svg
+              class="w-4 h-4 icon-verify-{{ device.id }}"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              ></path>
+            </svg>
+            Test Ping
+          </button>
+          <button
+            onclick="syncDeviceToOrthanc('{{ device.id }}', this)"
+            title="Sync ke Orthanc"
+            class="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 hover:text-indigo-700 transition-colors shadow-sm"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              ></path>
+            </svg>
+          </button>
+          <button
+            onclick="editDevice('{{ device.id }}', '{{ device.name }}', '{{ device.host }}', '{{ device.port }}', '{{ device.ae_title }}', '{{ device.description }}')"
+            class="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors shadow-sm"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              ></path>
+            </svg>
+          </button>
+          <button
+            onclick="deleteDevice('{{ device.id }}', '{{ device.name }}')"
+            class="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-colors shadow-sm"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              ></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      {% empty %}
+      <div
+        class="col-span-2 bg-white rounded-[2rem] p-12 text-center text-sm text-slate-400 card-shadow border border-slate-100"
+      >
+        <h4 class="text-base font-bold text-gray-800 mb-1">
+          Belum Ada Node Terdaftar
+        </h4>
+        <p class="text-xs text-gray-500 max-w-sm mx-auto">
+          Silakan tambahkan perangkat DICOM secara manual.
+        </p>
+      </div>
+      {% endfor %}
     </div>
+  </div>
 </div>
 
 <!-- ==================== TAB 2: AUTO-ROUTING ==================== -->
-<div id="tabContent-routing" class="tab-pane hidden grid grid-cols-1 lg:grid-cols-3 gap-8">
-    <!-- Form Tambah Aturan Routing -->
-    <div class="lg:col-span-1">
-        <div class="bg-white p-8 rounded-[2rem] card-shadow border border-slate-100">
-            <div class="flex items-center gap-3 mb-2">
-                <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
-                    </svg>
-                </div>
-                <h3 class="text-base font-bold text-gray-900">Tambah Aturan Routing</h3>
-            </div>
-            <p class="text-xs text-gray-500 mb-6">Atur filter perutean studi DICOM baru ke workstation tujuan secara otomatis.</p>
-
-            <form onsubmit="submitRoutingRule(event)" class="space-y-4">
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Nama Aturan *</label>
-                    <input type="text" id="ruleName" required placeholder="Contoh: CT Auto-Route"
-                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Filter Modality (cth: CT, MR)</label>
-                    <input type="text" id="ruleModality" placeholder="Kosongkan untuk semua modality"
-                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20 uppercase">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Prefiks Patient ID</label>
-                    <input type="text" id="rulePatientId" placeholder="Kosongkan untuk semua Patient ID"
-                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20 font-mono">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Deskripsi Studi mengandung teks</label>
-                    <input type="text" id="ruleStudyDesc" placeholder="Contoh: Brain"
-                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Node DICOM Tujuan *</label>
-                    <select id="ruleTargetDevice" required
-                        class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20">
-                        <option value="">-- Pilih Perangkat --</option>
-                        {% for device in devices %}
-                        <option value="{{ device.id }}">{{ device.name }} (AE: {{ device.ae_title }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="pt-2">
-                    <button type="submit"
-                        class="w-full py-4 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 transition-all">
-                        Aktifkan Aturan
-                    </button>
-                </div>
-            </form>
+<div
+  id="tabContent-routing"
+  class="tab-pane hidden grid grid-cols-1 lg:grid-cols-3 gap-8"
+>
+  <!-- Form Tambah Aturan Routing -->
+  <div class="lg:col-span-1">
+    <div
+      class="bg-white p-8 rounded-[2rem] card-shadow border border-slate-100"
+    >
+      <div class="flex items-center gap-3 mb-2">
+        <div
+          class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"
+        >
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+            ></path>
+          </svg>
         </div>
+        <h3 class="text-base font-bold text-gray-900">Tambah Aturan Routing</h3>
+      </div>
+      <p class="text-xs text-gray-500 mb-6">
+        Atur filter perutean studi DICOM baru ke workstation tujuan secara
+        otomatis.
+      </p>
+
+      <form onsubmit="submitRoutingRule(event)" class="space-y-4">
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >Nama Aturan *</label
+          >
+          <input
+            type="text"
+            id="ruleName"
+            required
+            placeholder="Contoh: CT Auto-Route"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20"
+          />
+        </div>
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >Filter Modality (cth: CT, MR)</label
+          >
+          <input
+            type="text"
+            id="ruleModality"
+            placeholder="Kosongkan untuk semua modality"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20 uppercase"
+          />
+        </div>
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >Prefiks Patient ID</label
+          >
+          <input
+            type="text"
+            id="rulePatientId"
+            placeholder="Kosongkan untuk semua Patient ID"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20 font-mono"
+          />
+        </div>
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >Deskripsi Studi mengandung teks</label
+          >
+          <input
+            type="text"
+            id="ruleStudyDesc"
+            placeholder="Contoh: Brain"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20"
+          />
+        </div>
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >Node DICOM Tujuan *</label
+          >
+          <select
+            id="ruleTargetDevice"
+            required
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-indigo-500/20"
+          >
+            <option value="">-- Pilih Perangkat --</option>
+            {% for device in devices %}
+            <option value="{{ device.id }}">
+              {{ device.name }} (AE: {{ device.ae_title }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="pt-2">
+          <button
+            type="submit"
+            class="w-full py-4 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+          >
+            Aktifkan Aturan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Daftar Aturan & Log Routing -->
+  <div class="lg:col-span-2 space-y-8">
+    <div>
+      <h3 class="text-lg font-bold text-gray-900 mb-4">
+        Aturan Perutean Aktif
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="rulesContainer">
+        {% for rule in rules %}
+        <div
+          class="bg-white rounded-3xl p-6 card-shadow border border-slate-50 flex flex-col justify-between"
+          id="card-rule-{{ rule.id }}"
+        >
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-bold text-gray-900">{{ rule.name }}</h4>
+              <button
+                onclick="toggleRule('{{ rule.id }}')"
+                class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border transition-all {% if rule.is_active %}bg-green-50 text-green-600 border-green-200/50 hover:bg-green-100{% else %}bg-slate-50 text-slate-400 border-slate-200/50 hover:bg-slate-100{% endif %}"
+                id="btn-toggle-rule-{{ rule.id }}"
+              >
+                {% if rule.is_active %}Aktif{% else %}Nonaktif{% endif %}
+              </button>
+            </div>
+            <div
+              class="text-xs text-slate-500 space-y-1 mb-4 bg-slate-50 p-3 rounded-2xl font-medium"
+            >
+              <div>
+                <span class="text-slate-400">Modality:</span>
+                <span class="font-bold text-slate-700"
+                  >{{ rule.modality|default:"Semua" }}</span
+                >
+              </div>
+              <div>
+                <span class="text-slate-400">Patient ID Prefix:</span>
+                <span class="font-mono text-slate-700"
+                  >{{ rule.patient_id_prefix|default:"Semua" }}</span
+                >
+              </div>
+              <div>
+                <span class="text-slate-400">Deskripsi:</span>
+                <span class="text-slate-700"
+                  >{{ rule.study_desc_contains|default:"Semua" }}</span
+                >
+              </div>
+            </div>
+          </div>
+          <div
+            class="flex items-center justify-between pt-3 border-t border-slate-50"
+          >
+            <span class="text-[10px] font-bold text-slate-400 uppercase"
+              >Tujuan: {{ rule.target_device.name }}</span
+            >
+            <button
+              onclick="deleteRule('{{ rule.id }}')"
+              class="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
+            >
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                ></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        {% empty %}
+        <div
+          class="col-span-2 p-8 text-center text-xs text-slate-400 bg-white rounded-3xl border border-slate-100 card-shadow"
+        >
+          Belum ada aturan perutean otomatis yang diaktifkan.
+        </div>
+        {% endfor %}
+      </div>
     </div>
 
-    <!-- Daftar Aturan & Log Routing -->
-    <div class="lg:col-span-2 space-y-8">
+    <!-- Log Audit Perutean -->
+    <div>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-gray-900">
+          Log Aktivitas Auto-Routing
+        </h3>
+        <button
+          onclick="refreshRoutingLogs()"
+          class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+        >
+          <svg
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3m0 0l3 3m-3-3v8"
+            ></path>
+          </svg>
+          Perbarui Log
+        </button>
+      </div>
+      <div
+        class="bg-white rounded-3xl card-shadow border border-slate-50 overflow-hidden"
+      >
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr
+              class="bg-slate-50 text-slate-400 uppercase tracking-widest font-black text-[9px] border-b border-slate-100"
+            >
+              <th class="p-4 pl-6">Tanggal</th>
+              <th class="p-4">Pasien</th>
+              <th class="p-4">Modality</th>
+              <th class="p-4">Tujuan</th>
+              <th class="p-4 pr-6">Status</th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+      <div
+        class="max-h-[300px] overflow-y-auto custom-scrollbar bg-white rounded-b-3xl border-t border-slate-100"
+      >
+        <table class="w-full text-left border-collapse text-xs">
+          <tbody id="routingLogsBody">
+            {% for log in routing_logs %}
+            <tr
+              class="border-b border-slate-50 hover:bg-slate-50/50 transition-all font-medium text-slate-600"
+            >
+              <td class="p-4 pl-6 text-slate-400 font-normal text-[10px]">
+                {{ log.created_at|date:"d M Y, H:i" }}
+              </td>
+              <td class="p-4 font-bold text-slate-800">
+                {{ log.patient_name }}
+              </td>
+              <td class="p-4">
+                <span
+                  class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-bold"
+                  >{{ log.modality }}</span
+                >
+              </td>
+              <td class="p-4 text-[11px]">{{ log.target_device_name }}</td>
+              <td class="p-4 pr-6">
+                <span
+                  class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg {% if log.status == 'Success' %}bg-green-50 text-green-600{% else %}bg-red-50 text-red-600{% endif %}"
+                >
+                  {{ log.status }}
+                </span>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="5" class="p-8 text-center text-slate-400">
+                Tidak ada log aktivitas perutean.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB 3: MODALITIES ORTHANC ==================== -->
+<div
+  id="tabContent-modalities"
+  class="tab-pane hidden grid grid-cols-1 lg:grid-cols-3 gap-8"
+>
+  <!-- Kolom Kiri: Form Tambah/Edit Modality -->
+  <div class="lg:col-span-1">
+    <div
+      class="bg-white p-8 rounded-[2rem] card-shadow border border-slate-100"
+    >
+      <div class="flex items-center gap-3 mb-2">
+        <div
+          class="w-10 h-10 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center"
+          id="modalityFormIconWrap"
+        >
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
+            ></path>
+          </svg>
+        </div>
         <div>
-            <h3 class="text-lg font-bold text-gray-900 mb-4">Aturan Perutean Aktif</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="rulesContainer">
-                {% for rule in rules %}
-                <div class="bg-white rounded-3xl p-6 card-shadow border border-slate-50 flex flex-col justify-between" id="card-rule-{{ rule.id }}">
-                    <div>
-                        <div class="flex items-center justify-between mb-3">
-                            <h4 class="text-sm font-bold text-gray-900">{{ rule.name }}</h4>
-                            <button onclick="toggleRule('{{ rule.id }}')" 
-                                class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border transition-all
-                                {% if rule.is_active %}bg-green-50 text-green-600 border-green-200/50 hover:bg-green-100{% else %}bg-slate-50 text-slate-400 border-slate-200/50 hover:bg-slate-100{% endif %}" id="btn-toggle-rule-{{ rule.id }}">
-                                {% if rule.is_active %}Aktif{% else %}Nonaktif{% endif %}
-                            </button>
+          <h3 class="text-base font-bold text-gray-900" id="modalityFormTitle">
+            Tambah Modality
+          </h3>
+          <p class="text-xs text-gray-500" id="modalityFormSubtitle">
+            Daftarkan ke konfigurasi Orthanc.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-6 space-y-4">
+        <input type="hidden" id="modalityEditName" />
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >Nama Simbolik *</label
+          >
+          <input
+            type="text"
+            id="modalityName"
+            placeholder="Contoh: PACS_UTAMA"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-teal-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-teal-500/20 font-mono"
+          />
+          <p class="text-[10px] text-slate-400 mt-1 ml-1">
+            Nama unik pengenal di Orthanc
+          </p>
+        </div>
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >AE Title *</label
+          >
+          <input
+            type="text"
+            id="modalityAet"
+            placeholder="Contoh: RADIOLOGY"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-teal-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-teal-500/20 font-mono"
+          />
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2">
+            <label
+              class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+              >Host IP *</label
+            >
+            <input
+              type="text"
+              id="modalityHost"
+              placeholder="192.168.1.100"
+              class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-teal-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-teal-500/20 font-mono"
+            />
+          </div>
+          <div>
+            <label
+              class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+              >Port *</label
+            >
+            <input
+              type="number"
+              id="modalityPort"
+              value="104"
+              class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-teal-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-teal-500/20"
+            />
+          </div>
+        </div>
+        <div>
+          <label
+            class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
+            >Manufacturer</label
+          >
+          <input
+            type="text"
+            id="modalityManufacturer"
+            value="Generic"
+            placeholder="Generic"
+            class="w-full px-5 py-3.5 bg-slate-50 rounded-xl focus:ring-4 focus:ring-teal-500/10 focus:bg-white outline-none text-sm transition-all border border-transparent focus:border-teal-500/20"
+          />
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button
+            onclick="resetModalityForm()"
+            id="btnCancelModalityEdit"
+            class="flex-1 py-4 bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-all hidden"
+          >
+            Batal
+          </button>
+          <button
+            onclick="submitModality()"
+            id="btnSubmitModality"
+            class="flex-[2] py-4 bg-teal-600 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-teal-500/20 hover:bg-teal-700 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+          >
+            Simpan Modality
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Kolom Kanan: Daftar Modalities dari Orthanc -->
+  <div class="lg:col-span-2">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h3 class="text-lg font-bold text-gray-900">
+          Modalities Terdaftar di Orthanc
+        </h3>
+        <p class="text-xs text-gray-500 mt-1">
+          Data langsung dari konfigurasi Orthanc aktif.
+        </p>
+      </div>
+      <button
+        onclick="loadOrthanModalities()"
+        id="refreshModalityBtn"
+        class="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 text-slate-500 text-xs font-black uppercase tracking-wider rounded-xl hover:bg-slate-100 transition-all"
+      >
+        <svg
+          id="refreshModalityIcon"
+          class="w-4 h-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          ></path>
+        </svg>
+        Refresh
+      </button>
+    </div>
+    <div id="modalitiesGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div
+        class="col-span-2 bg-white rounded-[2rem] p-12 text-center card-shadow border border-slate-100"
+      >
+        <p class="text-sm text-slate-400 font-medium">
+          Memuat data dari Orthanc...
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %} {% block scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get("tab");
+    if (tab === "routing") {
+      switchTab("routing");
+    } else if (tab === "modalities") {
+      switchTab("modalities");
+      loadOrthanModalities();
+    }
+  });
+
+  /* Logika perpindahan tab antara Nodes dan Routing */
+  function switchTab(tabId) {
+    document
+      .querySelectorAll(".tab-pane")
+      .forEach((p) => p.classList.add("hidden"));
+    document.getElementById(`tabContent-${tabId}`).classList.remove("hidden");
+
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.className =
+        "tab-btn px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 text-slate-500 hover:text-slate-700";
+    });
+
+    const activeBtn = document.getElementById(`tabBtn-${tabId}`);
+    const accentColors = {
+      nodes: "bg-white text-slate-800 shadow-sm border border-slate-200/20",
+      routing: "bg-white text-indigo-700 shadow-sm border border-indigo-200/20",
+      modalities: "bg-white text-teal-700 shadow-sm border border-teal-200/20",
+    };
+    activeBtn.className = `tab-btn px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${accentColors[tabId]}`;
+  }
+
+  // ==================== SYNC PER DEVICE KE ORTHANC ====================
+  async function syncDeviceToOrthanc(deviceId, btn) {
+    const icon = btn.querySelector("svg");
+    btn.disabled = true;
+    icon.classList.add("animate-spin");
+    try {
+      const r = await fetch(`/api/sync-modalities/${deviceId}/`, {
+        method: "POST",
+        headers: { "X-CSRFToken": "{{ csrf_token }}" },
+      });
+      const data = await r.json();
+      showToast(data.message, data.success ? "success" : "error");
+    } catch (e) {
+      showToast("Gagal menghubungi server: " + e, "error");
+    } finally {
+      btn.disabled = false;
+      icon.classList.remove("animate-spin");
+    }
+  }
+
+  // ==================== SYNC SEMUA KE ORTHANC ====================
+  async function syncToOrthanc() {
+    const btn = document.getElementById("syncBtn");
+    const icon = document.getElementById("syncIcon");
+    btn.disabled = true;
+    icon.classList.add("animate-spin");
+
+    try {
+      const r = await fetch("{% url 'sync_modalities' %}", {
+        method: "POST",
+        headers: { "X-CSRFToken": "{{ csrf_token }}" },
+      });
+      const data = await r.json();
+      showToast(data.message, data.success ? "success" : "error");
+    } catch (e) {
+      showToast("Gagal menghubungi server: " + e, "error");
+    } finally {
+      btn.disabled = false;
+      icon.classList.remove("animate-spin");
+    }
+  }
+
+  // ==================== MODALITIES ORTHANC JAVASCRIPT ====================
+  const MODALITY_CARD_ICON = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"></path></svg>`;
+  const MODALITY_EDIT_ICON = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>`;
+  const MODALITY_DEL_ICON = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+
+  async function loadOrthanModalities() {
+    const grid = document.getElementById("modalitiesGrid");
+    const icon = document.getElementById("refreshModalityIcon");
+    icon.classList.add("animate-spin");
+    grid.innerHTML = `
+            <div class="col-span-2 bg-white rounded-[2rem] p-12 text-center card-shadow border border-slate-100">
+                <p class="text-sm text-slate-400 font-medium">Memuat data dari Orthanc...</p>
+            </div>`;
+
+    try {
+      const r = await fetch("{% url 'orthanc_modalities_api' %}");
+      const data = await r.json();
+
+      if (!data.success) {
+        grid.innerHTML = `
+                    <div class="col-span-2 bg-white rounded-[2rem] p-12 text-center card-shadow border border-red-50">
+                        <div class="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         </div>
-                        <div class="text-xs text-slate-500 space-y-1 mb-4 bg-slate-50 p-3 rounded-2xl font-medium">
-                            <div><span class="text-slate-400">Modality:</span> <span class="font-bold text-slate-700">{{ rule.modality|default:"Semua" }}</span></div>
-                            <div><span class="text-slate-400">Patient ID Prefix:</span> <span class="font-mono text-slate-700">{{ rule.patient_id_prefix|default:"Semua" }}</span></div>
-                            <div><span class="text-slate-400">Deskripsi:</span> <span class="text-slate-700">{{ rule.study_desc_contains|default:"Semua" }}</span></div>
+                        <p class="text-sm font-bold text-red-600">${data.message}</p>
+                        <p class="text-xs text-slate-400 mt-1">Pastikan Orthanc terkoneksi dan kredensial benar.</p>
+                    </div>`;
+        return;
+      }
+
+      if (!data.modalities.length) {
+        grid.innerHTML = `
+                    <div class="col-span-2 bg-white rounded-[2rem] p-12 text-center card-shadow border border-slate-100">
+                        <h4 class="text-base font-bold text-gray-800 mb-1">Belum Ada Modality</h4>
+                        <p class="text-xs text-gray-500 max-w-sm mx-auto">Tambahkan modality menggunakan form di sebelah kiri.</p>
+                    </div>`;
+        return;
+      }
+
+      grid.innerHTML = data.modalities
+        .map(
+          (m) => `
+                <div class="bg-white rounded-[2rem] p-8 card-shadow group hover:shadow-2xl hover:shadow-teal-500/5 border border-slate-50 transition-all duration-300 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-teal-400 flex-shrink-0"></span>
+                                <span class="text-xs font-black uppercase tracking-widest text-slate-500">Orthanc Node</span>
+                            </div>
+                            <span class="text-[10px] font-mono font-bold bg-teal-50 text-teal-700 border border-teal-100/50 px-2.5 py-1 rounded-lg">
+                                AE: ${m.AET || "-"}
+                            </span>
+                        </div>
+
+                        <h4 class="text-base font-bold text-gray-900 truncate mb-1">${m.name}</h4>
+                        <p class="text-xs text-slate-400 font-medium mb-4">${m.Manufacturer || "Generic"}</p>
+
+                        <div class="bg-slate-50 rounded-2xl p-4 space-y-2 border border-slate-100/50 text-xs text-slate-600 mb-6">
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Host IP:</span>
+                                <span class="font-mono font-semibold">${m.Host || "-"}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">DICOM Port:</span>
+                                <span class="font-semibold">${m.Port || "-"}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Allow Echo:</span>
+                                <span class="font-semibold ${m.AllowEcho ? "text-green-600" : "text-red-500"}">${m.AllowEcho ? "Ya" : "Tidak"}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Allow Store:</span>
+                                <span class="font-semibold ${m.AllowStore ? "text-green-600" : "text-red-500"}">${m.AllowStore ? "Ya" : "Tidak"}</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase">Tujuan: {{ rule.target_device.name }}</span>
-                        <button onclick="deleteRule('{{ rule.id }}')" class="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors">
+
+                    <div class="flex gap-2.5 pt-4 border-t border-slate-100">
+                        <button onclick="editModality('${m.name}', '${m.AET || ""}', '${m.Host || ""}', ${m.Port || 104}, '${m.Manufacturer || "Generic"}')"
+                            class="flex-1 py-2.5 bg-teal-50 text-teal-700 rounded-xl hover:bg-teal-100 transition-colors shadow-sm text-xs font-bold flex items-center justify-center gap-1.5">
+                            ${MODALITY_EDIT_ICON} Edit
+                        </button>
+                        <button onclick="syncModalityToLocal('${m.name}', '${m.AET || ""}', '${m.Host || ""}', ${m.Port || 104}, '${m.Manufacturer || "Generic"}', this)"
+                            title="Simpan ke DICOM Nodes lokal"
+                            class="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 hover:text-blue-700 transition-colors shadow-sm">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
                             </svg>
+                        </button>
+                        <button onclick="deleteModality('${m.name}')"
+                            class="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-colors shadow-sm">
+                            ${MODALITY_DEL_ICON}
                         </button>
                     </div>
                 </div>
-                {% empty %}
-                <div class="col-span-2 p-8 text-center text-xs text-slate-400 bg-white rounded-3xl border border-slate-100 card-shadow">
-                    Belum ada aturan perutean otomatis yang diaktifkan.
-                </div>
-                {% endfor %}
-            </div>
-        </div>
+            `,
+        )
+        .join("");
+    } catch (e) {
+      grid.innerHTML = `
+                <div class="col-span-2 bg-white rounded-[2rem] p-12 text-center card-shadow border border-red-50">
+                    <p class="text-sm font-bold text-red-600">Gagal terhubung ke server.</p>
+                </div>`;
+    } finally {
+      icon.classList.remove("animate-spin");
+    }
+  }
 
-        <!-- Log Audit Perutean -->
-        <div>
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-bold text-gray-900">Log Aktivitas Auto-Routing</h3>
-                <button onclick="refreshRoutingLogs()" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3m0 0l3 3m-3-3v8"></path></svg>
-                    Perbarui Log
-                </button>
-            </div>
-            <div class="bg-white rounded-3xl card-shadow border border-slate-50 overflow-hidden">
-                <table class="w-full text-left border-collapse text-xs">
-                    <thead>
-                        <tr class="bg-slate-50 text-slate-400 uppercase tracking-widest font-black text-[9px] border-b border-slate-100">
-                            <th class="p-4 pl-6">Tanggal</th>
-                            <th class="p-4">Pasien</th>
-                            <th class="p-4">Modality</th>
-                            <th class="p-4">Tujuan</th>
-                            <th class="p-4 pr-6">Status</th>
-                        </tr>
-                    </table>
-                </div>
-                <div class="max-h-[300px] overflow-y-auto custom-scrollbar bg-white rounded-b-3xl border-t border-slate-100">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <tbody id="routingLogsBody">
-                            {% for log in routing_logs %}
-                            <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-all font-medium text-slate-600">
-                                <td class="p-4 pl-6 text-slate-400 font-normal text-[10px]">{{ log.created_at|date:"d M Y, H:i" }}</td>
-                                <td class="p-4 font-bold text-slate-800">{{ log.patient_name }}</td>
-                                <td class="p-4"><span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-bold">{{ log.modality }}</span></td>
-                                <td class="p-4 text-[11px]">{{ log.target_device_name }}</td>
-                                <td class="p-4 pr-6">
-                                    <span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg
-                                        {% if log.status == 'Success' %}bg-green-50 text-green-600{% else %}bg-red-50 text-red-600{% endif %}">
-                                        {{ log.status }}
-                                    </span>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="5" class="p-8 text-center text-slate-400">Tidak ada log aktivitas perutean.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+  function editModality(name, aet, host, port, manufacturer) {
+    document.getElementById("modalityEditName").value = name;
+    document.getElementById("modalityName").value = name;
+    document.getElementById("modalityAet").value = aet;
+    document.getElementById("modalityHost").value = host;
+    document.getElementById("modalityPort").value = port;
+    document.getElementById("modalityManufacturer").value = manufacturer;
+    document.getElementById("modalityName").disabled = true;
+    document.getElementById("modalityFormTitle").textContent = "Edit Modality";
+    document.getElementById("modalityFormSubtitle").textContent =
+      `Perbarui konfigurasi "${name}".`;
+    document.getElementById("modalityFormIconWrap").className =
+      "w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center";
+    document.getElementById("btnCancelModalityEdit").classList.remove("hidden");
+    const btn = document.getElementById("btnSubmitModality");
+    btn.textContent = "Perbarui Modality";
+    btn.className =
+      "flex-[2] py-4 bg-amber-500 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-amber-500/20 hover:bg-amber-600 hover:-translate-y-0.5 active:translate-y-0 transition-all";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
-{% endblock %}
+  function resetModalityForm() {
+    document.getElementById("modalityEditName").value = "";
+    document.getElementById("modalityName").value = "";
+    document.getElementById("modalityAet").value = "";
+    document.getElementById("modalityHost").value = "";
+    document.getElementById("modalityPort").value = 104;
+    document.getElementById("modalityManufacturer").value = "Generic";
+    document.getElementById("modalityName").disabled = false;
+    document.getElementById("modalityFormTitle").textContent =
+      "Tambah Modality";
+    document.getElementById("modalityFormSubtitle").textContent =
+      "Daftarkan ke konfigurasi Orthanc.";
+    document.getElementById("modalityFormIconWrap").className =
+      "w-10 h-10 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center";
+    document.getElementById("btnCancelModalityEdit").classList.add("hidden");
+    const btn = document.getElementById("btnSubmitModality");
+    btn.textContent = "Simpan Modality";
+    btn.className =
+      "flex-[2] py-4 bg-teal-600 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-teal-500/20 hover:bg-teal-700 hover:-translate-y-0.5 active:translate-y-0 transition-all";
+  }
 
-{% block scripts %}
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const tab = urlParams.get('tab');
-        if (tab === 'routing') {
-            switchTab('routing');
+  async function submitModality() {
+    const editName = document.getElementById("modalityEditName").value;
+    const name = document.getElementById("modalityName").value.trim();
+    const aet = document.getElementById("modalityAet").value.trim();
+    const host = document.getElementById("modalityHost").value.trim();
+    const port = parseInt(document.getElementById("modalityPort").value) || 104;
+    const mfr =
+      document.getElementById("modalityManufacturer").value.trim() || "Generic";
+
+    if (!name || !host) {
+      showToast("Nama simbolik dan Host wajib diisi.", "error");
+      return;
+    }
+
+    const btn = document.getElementById("btnSubmitModality");
+    btn.disabled = true;
+
+    try {
+      const r = await fetch("{% url 'orthanc_modalities_api' %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({
+          action: editName ? "update" : "create",
+          name,
+          aet,
+          host,
+          port,
+          manufacturer: mfr,
+        }),
+      });
+      const data = await r.json();
+      showToast(data.message, data.success ? "success" : "error");
+      if (data.success) {
+        resetModalityForm();
+        loadOrthanModalities();
+      }
+    } catch (e) {
+      showToast("Error: " + e, "error");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function syncModalityToLocal(name, aet, host, port, manufacturer, btn) {
+    if (!host) {
+      showToast("Modality ini tidak memiliki Host IP.", "warning");
+      return;
+    }
+    const icon = btn.querySelector("svg");
+    btn.disabled = true;
+    icon.classList.add("animate-spin");
+    try {
+      const r = await fetch("{% url 'sync_modality_to_local' %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({ name, aet, host, port, manufacturer }),
+      });
+      const data = await r.json();
+      showToast(data.message, data.success ? "success" : "error");
+    } catch (e) {
+      showToast("Gagal: " + e, "error");
+    } finally {
+      btn.disabled = false;
+      icon.classList.remove("animate-spin");
+    }
+  }
+
+  async function deleteModality(name) {
+    if (!confirm(`Hapus modality "${name}" dari Orthanc?`)) return;
+    try {
+      const r = await fetch("{% url 'orthanc_modalities_api' %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({ action: "delete", name }),
+      });
+      const data = await r.json();
+      showToast(data.message, data.success ? "success" : "error");
+      if (data.success) loadOrthanModalities();
+    } catch (e) {
+      showToast("Error: " + e, "error");
+    }
+  }
+
+  // ==================== DICOM NODES JAVASCRIPT ====================
+  /* Mengisi form dengan data perangkat untuk proses ubah/edit */
+  function editDevice(id, name, host, port, aeTitle, description) {
+    document.getElementById("deviceId").value = id;
+    document.getElementById("deviceName").value = name;
+    document.getElementById("deviceHost").value = host;
+    document.getElementById("devicePort").value = port;
+    document.getElementById("deviceAeTitle").value = aeTitle;
+    document.getElementById("deviceDescription").value =
+      description === "None" ? "" : description;
+
+    document.getElementById("formTitle").textContent = "Ubah Perangkat DICOM";
+    document.getElementById("formSubtitle").textContent =
+      "Perbarui detail data perangkat DICOM Anda di bawah ini.";
+    document.getElementById("btnCancelEdit").classList.remove("hidden");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /* Mengembalikan form tambah perangkat ke keadaan semula */
+  function resetForm() {
+    document.getElementById("deviceId").value = "";
+    document.getElementById("deviceName").value = "";
+    document.getElementById("deviceHost").value = "";
+    document.getElementById("devicePort").value = "104";
+    document.getElementById("deviceAeTitle").value = "";
+    document.getElementById("deviceDescription").value = "";
+
+    document.getElementById("formTitle").textContent = "Tambah Perangkat DICOM";
+    document.getElementById("formSubtitle").textContent =
+      "Daftarkan target peer/node DICOM baru secara manual.";
+    document.getElementById("btnCancelEdit").classList.add("hidden");
+  }
+
+  /* Mengirimkan form pendaftaran atau pengubahan perangkat ke API */
+  async function submitForm(e) {
+    e.preventDefault();
+    const id = document.getElementById("deviceId").value;
+    const name = document.getElementById("deviceName").value.trim();
+    const host = document.getElementById("deviceHost").value.trim();
+    const port = parseInt(document.getElementById("devicePort").value);
+    const aeTitle = document.getElementById("deviceAeTitle").value.trim();
+    const description = document
+      .getElementById("deviceDescription")
+      .value.trim();
+
+    const btn = document.getElementById("btnSubmit");
+    btn.disabled = true;
+    btn.textContent = "Menyimpan...";
+
+    try {
+      const resp = await fetch('{% url "dicom_register_api" %}', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({
+          name,
+          host,
+          port,
+          ae_title: aeTitle,
+          description,
+        }),
+      });
+      const res = await resp.json();
+      if (res.success) {
+        showToast(res.message, "success");
+        resetForm();
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        showToast(res.message, "error");
+      }
+    } catch (err) {
+      showToast("Kesalahan koneksi jaringan.", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Simpan Perangkat";
+    }
+  }
+
+  /* Melakukan verifikasi koneksi perangkat menggunakan C-ECHO (Ping) */
+  async function verifyDevice(id, host, port, aeTitle) {
+    const dot = document.querySelector(`.status-dot-${id}`);
+    const txt = document.querySelector(`.status-text-${id}`);
+    const time = document.querySelector(`.status-time-${id}`);
+    const icon = document.querySelector(`.icon-verify-${id}`);
+
+    dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-slate-400 animate-spin`;
+    txt.textContent = "MENGECEK...";
+    icon.classList.add("animate-spin");
+
+    try {
+      const resp = await fetch('{% url "dicom_verify_api" %}', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({ host, port, ae_title: aeTitle, device_id: id }),
+      });
+      const res = await resp.json();
+      icon.classList.remove("animate-spin");
+      if (res.success) {
+        dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-green-500 animate-pulse shadow-sm shadow-green-500/50`;
+        txt.textContent = "Online";
+        showToast(`C-ECHO berhasil ke ${host}:${port}!`, "success");
+      } else {
+        dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-red-500`;
+        txt.textContent = "Offline";
+        showToast(`C-ECHO gagal: ${res.message}`, "error");
+      }
+      const now = new Date();
+      time.textContent = `${String(now.getDate()).padStart(2, "0")} ${now.toLocaleString("id-ID", { month: "short" })} ${now.getFullYear()}, ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    } catch (err) {
+      icon.classList.remove("animate-spin");
+      dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-red-500`;
+      txt.textContent = "Offline";
+      showToast("Kesalahan saat memverifikasi.", "error");
+    }
+  }
+
+  /* Menghapus perangkat DICOM dari sistem */
+  async function deleteDevice(id, name) {
+    if (
+      !confirm(`Apakah Anda yakin ingin menghapus perangkat DICOM "${name}"?`)
+    )
+      return;
+    try {
+      const resp = await fetch('{% url "dicom_delete_api" %}', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({ id }),
+      });
+      const res = await resp.json();
+      if (res.success) {
+        showToast(res.message, "success");
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        showToast(res.message, "error");
+      }
+    } catch (err) {
+      showToast("Kesalahan jaringan.", "error");
+    }
+  }
+
+  // ==================== AUTO-ROUTING JAVASCRIPT ====================
+  /* Mendaftarkan aturan perutean otomatis baru */
+  async function submitRoutingRule(e) {
+    e.preventDefault();
+    const name = document.getElementById("ruleName").value.trim();
+    const modality = document.getElementById("ruleModality").value.trim();
+    const patient_id_prefix = document
+      .getElementById("rulePatientId")
+      .value.trim();
+    const study_desc_contains = document
+      .getElementById("ruleStudyDesc")
+      .value.trim();
+    const device_id = document.getElementById("ruleTargetDevice").value;
+
+    try {
+      const resp = await fetch('{% url "routing_rules_api" %}', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({
+          action: "create",
+          name,
+          modality,
+          patient_id_prefix,
+          study_desc_contains,
+          device_id,
+        }),
+      });
+      const res = await resp.json();
+      if (res.success) {
+        showToast(res.message, "success");
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        showToast(res.message, "error");
+      }
+    } catch (err) {
+      showToast("Kesalahan koneksi jaringan.", "error");
+    }
+  }
+
+  /* Mengubah status keaktifan aturan perutean otomatis */
+  async function toggleRule(ruleId) {
+    try {
+      const resp = await fetch('{% url "routing_rules_api" %}', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({ action: "toggle", rule_id: ruleId }),
+      });
+      const res = await resp.json();
+      if (res.success) {
+        showToast(res.message, "success");
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    } catch (err) {
+      showToast("Koneksi gagal.", "error");
+    }
+  }
+
+  /* Menghapus aturan perutean otomatis */
+  async function deleteRule(ruleId) {
+    if (!confirm("Hapus aturan perutean ini?")) return;
+    try {
+      const resp = await fetch('{% url "routing_rules_api" %}', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: JSON.stringify({ action: "delete", rule_id: ruleId }),
+      });
+      const res = await resp.json();
+      if (res.success) {
+        showToast(res.message, "success");
+        document.getElementById(`card-rule-${ruleId}`).remove();
+      }
+    } catch (err) {
+      showToast("Gagal menghapus.", "error");
+    }
+  }
+
+  /* Memperbarui log perutean otomatis secara real-time */
+  async function refreshRoutingLogs() {
+    try {
+      const resp = await fetch('{% url "routing_logs_api" %}');
+      const res = await resp.json();
+      if (res.success) {
+        const tbody = document.getElementById("routingLogsBody");
+        if (res.logs.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400">Tidak ada log aktivitas perutean.</td></tr>`;
+          return;
         }
-    });
-
-    /* Logika perpindahan tab antara Nodes dan Routing */
-    function switchTab(tabId) {
-        document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
-        document.getElementById(`tabContent-${tabId}`).classList.remove('hidden');
-
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.className = "tab-btn px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 text-slate-500 hover:text-slate-700";
-        });
-
-        const activeBtn = document.getElementById(`tabBtn-${tabId}`);
-        const accentColors = {
-            nodes: 'bg-white text-slate-800 shadow-sm border border-slate-200/20',
-            routing: 'bg-white text-indigo-700 shadow-sm border border-indigo-200/20',
-        };
-        activeBtn.className = `tab-btn px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${accentColors[tabId]}`;
-    }
-
-    // ==================== DICOM NODES JAVASCRIPT ====================
-    /* Mengisi form dengan data perangkat untuk proses ubah/edit */
-    function editDevice(id, name, host, port, aeTitle, description) {
-        document.getElementById('deviceId').value = id;
-        document.getElementById('deviceName').value = name;
-        document.getElementById('deviceHost').value = host;
-        document.getElementById('devicePort').value = port;
-        document.getElementById('deviceAeTitle').value = aeTitle;
-        document.getElementById('deviceDescription').value = description === 'None' ? '' : description;
-
-        document.getElementById('formTitle').textContent = 'Ubah Perangkat DICOM';
-        document.getElementById('formSubtitle').textContent = 'Perbarui detail data perangkat DICOM Anda di bawah ini.';
-        document.getElementById('btnCancelEdit').classList.remove('hidden');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    /* Mengembalikan form tambah perangkat ke keadaan semula */
-    function resetForm() {
-        document.getElementById('deviceId').value = '';
-        document.getElementById('deviceName').value = '';
-        document.getElementById('deviceHost').value = '';
-        document.getElementById('devicePort').value = '104';
-        document.getElementById('deviceAeTitle').value = '';
-        document.getElementById('deviceDescription').value = '';
-
-        document.getElementById('formTitle').textContent = 'Tambah Perangkat DICOM';
-        document.getElementById('formSubtitle').textContent = 'Daftarkan target peer/node DICOM baru secara manual.';
-        document.getElementById('btnCancelEdit').classList.add('hidden');
-    }
-
-    /* Mengirimkan form pendaftaran atau pengubahan perangkat ke API */
-    async function submitForm(e) {
-        e.preventDefault();
-        const id = document.getElementById('deviceId').value;
-        const name = document.getElementById('deviceName').value.trim();
-        const host = document.getElementById('deviceHost').value.trim();
-        const port = parseInt(document.getElementById('devicePort').value);
-        const aeTitle = document.getElementById('deviceAeTitle').value.trim();
-        const description = document.getElementById('deviceDescription').value.trim();
-
-        const btn = document.getElementById('btnSubmit');
-        btn.disabled = true;
-        btn.textContent = 'Menyimpan...';
-
-        try {
-            const resp = await fetch('{% url "dicom_register_api" %}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({ name, host, port, ae_title: aeTitle, description })
-            });
-            const res = await resp.json();
-            if (res.success) {
-                showToast(res.message, 'success');
-                resetForm();
-                setTimeout(() => window.location.reload(), 1200);
-            } else {
-                showToast(res.message, 'error');
-            }
-        } catch (err) {
-            showToast('Kesalahan koneksi jaringan.', 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Simpan Perangkat';
-        }
-    }
-
-    /* Melakukan verifikasi koneksi perangkat menggunakan C-ECHO (Ping) */
-    async function verifyDevice(id, host, port, aeTitle) {
-        const dot = document.querySelector(`.status-dot-${id}`);
-        const txt = document.querySelector(`.status-text-${id}`);
-        const time = document.querySelector(`.status-time-${id}`);
-        const icon = document.querySelector(`.icon-verify-${id}`);
-
-        dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-slate-400 animate-spin`;
-        txt.textContent = 'MENGECEK...';
-        icon.classList.add('animate-spin');
-
-        try {
-            const resp = await fetch('{% url "dicom_verify_api" %}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({ host, port, ae_title: aeTitle, device_id: id })
-            });
-            const res = await resp.json();
-            icon.classList.remove('animate-spin');
-            if (res.success) {
-                dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-green-500 animate-pulse shadow-sm shadow-green-500/50`;
-                txt.textContent = 'Online';
-                showToast(`C-ECHO berhasil ke ${host}:${port}!`, 'success');
-            } else {
-                dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-red-500`;
-                txt.textContent = 'Offline';
-                showToast(`C-ECHO gagal: ${res.message}`, 'error');
-            }
-            const now = new Date();
-            time.textContent = `${String(now.getDate()).padStart(2, '0')} ${now.toLocaleString('id-ID', { month: 'short' })} ${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        } catch (err) {
-            icon.classList.remove('animate-spin');
-            dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${id} bg-red-500`;
-            txt.textContent = 'Offline';
-            showToast('Kesalahan saat memverifikasi.', 'error');
-        }
-    }
-
-    /* Menghapus perangkat DICOM dari sistem */
-    async function deleteDevice(id, name) {
-        if (!confirm(`Apakah Anda yakin ingin menghapus perangkat DICOM "${name}"?`)) return;
-        try {
-            const resp = await fetch('{% url "dicom_delete_api" %}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({ id })
-            });
-            const res = await resp.json();
-            if (res.success) {
-                showToast(res.message, 'success');
-                setTimeout(() => window.location.reload(), 1200);
-            } else {
-                showToast(res.message, 'error');
-            }
-        } catch (err) {
-            showToast('Kesalahan jaringan.', 'error');
-        }
-    }
-
-    // ==================== AUTO-ROUTING JAVASCRIPT ====================
-    /* Mendaftarkan aturan perutean otomatis baru */
-    async function submitRoutingRule(e) {
-        e.preventDefault();
-        const name = document.getElementById('ruleName').value.trim();
-        const modality = document.getElementById('ruleModality').value.trim();
-        const patient_id_prefix = document.getElementById('rulePatientId').value.trim();
-        const study_desc_contains = document.getElementById('ruleStudyDesc').value.trim();
-        const device_id = document.getElementById('ruleTargetDevice').value;
-
-        try {
-            const resp = await fetch('{% url "routing_rules_api" %}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({ action: 'create', name, modality, patient_id_prefix, study_desc_contains, device_id })
-            });
-            const res = await resp.json();
-            if (res.success) {
-                showToast(res.message, 'success');
-                setTimeout(() => window.location.reload(), 1200);
-            } else {
-                showToast(res.message, 'error');
-            }
-        } catch (err) {
-            showToast('Kesalahan koneksi jaringan.', 'error');
-        }
-    }
-
-    /* Mengubah status keaktifan aturan perutean otomatis */
-    async function toggleRule(ruleId) {
-        try {
-            const resp = await fetch('{% url "routing_rules_api" %}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({ action: 'toggle', rule_id: ruleId })
-            });
-            const res = await resp.json();
-            if (res.success) {
-                showToast(res.message, 'success');
-                setTimeout(() => window.location.reload(), 1000);
-            }
-        } catch (err) {
-            showToast('Koneksi gagal.', 'error');
-        }
-    }
-
-    /* Menghapus aturan perutean otomatis */
-    async function deleteRule(ruleId) {
-        if (!confirm('Hapus aturan perutean ini?')) return;
-        try {
-            const resp = await fetch('{% url "routing_rules_api" %}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({ action: 'delete', rule_id: ruleId })
-            });
-            const res = await resp.json();
-            if (res.success) {
-                showToast(res.message, 'success');
-                document.getElementById(`card-rule-${ruleId}`).remove();
-            }
-        } catch (err) {
-            showToast('Gagal menghapus.', 'error');
-        }
-    }
-
-    /* Memperbarui log perutean otomatis secara real-time */
-    async function refreshRoutingLogs() {
-        try {
-            const resp = await fetch('{% url "routing_logs_api" %}');
-            const res = await resp.json();
-            if (res.success) {
-                const tbody = document.getElementById('routingLogsBody');
-                if (res.logs.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400">Tidak ada log aktivitas perutean.</td></tr>`;
-                    return;
-                }
-                tbody.innerHTML = res.logs.map(log => {
-                    const dt = new Date(log.created_at);
-                    const formattedDate = `${String(dt.getDate()).padStart(2, '0')} ${dt.toLocaleString('id-ID', { month: 'short' })} ${dt.getFullYear()}, ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
-                    const statusClass = log.status === 'Success' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600';
-                    return `
+        tbody.innerHTML = res.logs
+          .map((log) => {
+            const dt = new Date(log.created_at);
+            const formattedDate = `${String(dt.getDate()).padStart(2, "0")} ${dt.toLocaleString("id-ID", { month: "short" })} ${dt.getFullYear()}, ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+            const statusClass =
+              log.status === "Success"
+                ? "bg-green-50 text-green-600"
+                : "bg-red-50 text-red-600";
+            return `
                         <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-all font-medium text-slate-600">
                             <td class="p-4 pl-6 text-slate-400 font-normal text-[10px]">${formattedDate}</td>
                             <td class="p-4 font-bold text-slate-800">${log.patient_name}</td>
@@ -550,12 +1400,13 @@
                             <td class="p-4 pr-6"><span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg ${statusClass}">${log.status}</span></td>
                         </tr>
                     `;
-                }).join('');
-                showToast('Log perutean berhasil diperbarui.', 'success');
-            }
-        } catch (err) {
-            showToast('Gagal memuat log.', 'error');
-        }
+          })
+          .join("");
+        showToast("Log perutean berhasil diperbarui.", "success");
+      }
+    } catch (err) {
+      showToast("Gagal memuat log.", "error");
     }
+  }
 </script>
 {% endblock %}
