@@ -1,5 +1,6 @@
 import os
 import json
+import base64
 import requests
 import urllib3
 import secrets
@@ -39,7 +40,7 @@ def get_worklist_dir():
 def api_key_required(f):
     @wraps(f)
     def decorated_function(request, *args, **kwargs):
-        api_key_header = request.headers.get('X-API-Key')
+        api_key_header = request.headers.get('X-API-Key') or request.META.get('HTTP_X_API_KEY')
         if not api_key_header:
             return JsonResponse({"success": False, "message": "API Key is missing"}, status=401)
         
@@ -63,7 +64,7 @@ def api_key_or_login_required(f):
             return f(request, *args, **kwargs)
             
         # 2. Cek API Key jika belum login
-        api_key_header = request.headers.get('X-API-Key')
+        api_key_header = request.headers.get('X-API-Key') or request.META.get('HTTP_X_API_KEY')
         if not api_key_header:
             return JsonResponse({"success": False, "message": "Authentication required (Login or API Key)"}, status=401)
         
@@ -466,14 +467,15 @@ def create_worklist_api(request):
             
         filepath = os.path.join(worklist_dir, f"{accession_number}.wl")
 
-        # Cek apakah accession_number sudah ada (mencegah duplikasi)
-        # Bypass diizinkan jika secara eksplisit mengirimkan parameter bypass: true dalam JSON
-        # atau jika memanggil endpoint menggunakan method PUT
+        # Validasi duplikasi Accession Number (mencegah ACSN ganda)
+        # Bypass diizinkan jika parameter bypass=True dikirimkan atau method PUT
         is_bypass = data.get('bypass', False) or request.method == 'PUT'
+        acsn_exists_db = Worklist.objects.filter(accession_number__iexact=accession_number).exists()
+        acsn_exists_file = os.path.exists(filepath)
         
-        if not is_bypass and (Worklist.objects.filter(accession_number=accession_number).exists() or os.path.exists(filepath)):
-            error_msg = f"Worklist dengan Accession Number {accession_number} sudah ada."
-            # Log percobaan duplikasi ke Database (Audit Trail)
+        if not is_bypass and (acsn_exists_db or acsn_exists_file):
+            error_msg = f"Validasi Gagal: Accession Number '{accession_number}' sudah terdaftar dalam sistem worklist."
+            # Catat log audit trail duplikasi ke database
             WorklistLog.objects.create(
                 accession_number=accession_number,
                 patient_name=patient_name,
@@ -484,6 +486,7 @@ def create_worklist_api(request):
             )
             return JsonResponse({
                 "success": False,
+                "error_code": "DUPLICATE_ACCESSION_NUMBER",
                 "message": error_msg
             }, status=409)
 
@@ -2399,3 +2402,245 @@ def reset_logo_view(request):
 
     messages.success(request, "Logo berhasil direset ke default.")
     return redirect('configuration_page')
+
+
+# --- MODALITY DOC VIEWS & API ---
+
+@login_required
+def doc_modality_page_view(request):
+    """View untuk halaman pengelola Modality DOC (Dokumen & Foto Medis)"""
+    doc_items = Worklist.objects.filter(modality__iexact='DOC').order_by('-created_at')
+    
+    # Hitung statistik data Modality DOC
+    today = timezone.now().date()
+    total_doc = doc_items.count()
+    today_doc = doc_items.filter(created_at__date=today).count()
+    pacs_doc = doc_items.filter(status='Berhasil').count()
+    
+    stats = {
+        'total_doc': total_doc,
+        'today_doc': today_doc,
+        'pacs_doc': pacs_doc
+    }
+    
+    return render(request, 'doc_modality.html', {
+        'doc_items': doc_items,
+        'stats': stats
+    })
+
+
+@csrf_exempt
+@api_key_or_login_required
+@require_http_methods(["POST"])
+def doc_modality_upload_api(request):
+    """API untuk mengunggah dan meng-enkapsulasi PDF / Gambar ke format DICOM Modality DOC"""
+    try:
+        data = {}
+        file_bytes = None
+        file_name = "document.pdf"
+        
+        # Penanganan tipe konten (JSON vs Multipart Form-Data)
+        if request.content_type == 'application/json' or (request.body and not request.FILES):
+            try:
+                data = json.loads(request.body.decode('utf-8'))
+            except Exception:
+                data = {}
+            accession_number = str(data.get('accession_number', '')).strip()
+            patient_id = str(data.get('patient_id', '')).strip()
+            patient_name = str(data.get('patient_name', '')).strip()
+            birth_date = data.get('birth_date', '')
+            gender = data.get('gender', 'O')
+            procedure_desc = data.get('procedure_desc') or data.get('title', 'Medical Document')
+            send_to_pacs = data.get('send_to_pacs', True)
+            is_bypass = data.get('bypass', False)
+            file_name = data.get('file_name', 'document.pdf')
+            
+            # Membaca file yang di-encode base64
+            file_b64 = data.get('file_b64') or data.get('file')
+            if file_b64:
+                if ',' in file_b64:
+                    file_b64 = file_b64.split(',', 1)[1]
+                file_bytes = base64.b64decode(file_b64)
+        else:
+            accession_number = str(request.POST.get('accession_number', '')).strip()
+            patient_id = str(request.POST.get('patient_id', '')).strip()
+            patient_name = str(request.POST.get('patient_name', '')).strip()
+            birth_date = request.POST.get('birth_date', '')
+            gender = request.POST.get('gender', 'O')
+            procedure_desc = request.POST.get('procedure_desc', 'Medical Document')
+            send_to_pacs = request.POST.get('send_to_pacs') == 'on' or request.POST.get('send_to_pacs') == 'true' or request.POST.get('send_to_pacs') is None
+            is_bypass = request.POST.get('bypass') == 'true'
+            
+            uploaded_file = request.FILES.get('file')
+            if uploaded_file:
+                file_bytes = uploaded_file.read()
+                file_name = uploaded_file.name
+
+        if not file_bytes:
+            return JsonResponse({'success': False, 'message': 'Berkas dokumen wajib diunggah (file multipart atau base64 JSON)'}, status=400)
+            
+        if not accession_number or not patient_id or not patient_name:
+            return JsonResponse({'success': False, 'message': 'Accession Number, Patient ID, dan Patient Name wajib diisi'}, status=400)
+
+        # Validasi duplikasi Accession Number
+        worklist_dir = get_worklist_dir()
+        if not os.path.exists(worklist_dir):
+            os.makedirs(worklist_dir, exist_ok=True)
+            
+        filepath = os.path.join(worklist_dir, f"{accession_number}.wl")
+        acsn_exists_db = Worklist.objects.filter(accession_number__iexact=accession_number).exists()
+        acsn_exists_file = os.path.exists(filepath)
+        
+        if not is_bypass and (acsn_exists_db or acsn_exists_file):
+            error_msg = f"Validasi Gagal: Accession Number '{accession_number}' sudah terdaftar dalam sistem."
+            WorklistLog.objects.create(
+                accession_number=accession_number,
+                patient_name=patient_name,
+                method=request.method,
+                status="Duplikat",
+                raw_payload=request.body.decode('utf-8', errors='ignore') if hasattr(request, 'body') and request.body else None,
+                error_message=error_msg
+            )
+            return JsonResponse({'success': False, 'message': error_msg, 'error_code': 'DUPLICATE_ACCESSION_NUMBER'}, status=409)
+
+        # Cek apakah terdapat service go-dcm eksternal (https://github.com/jaisyullah/go-dcm)
+        go_dcm_url = SystemConfig.get_val('GO_DCM_URL')
+        dcm_converted_via_godcm = False
+        study_uid = generate_uid()
+        series_uid = generate_uid()
+        
+        if go_dcm_url:
+            try:
+                # Memanggil microservice go-dcm (pdf2dcm / img2dcm)
+                endpoint_path = "/api/v1/convert/pdf2dcm" if file_name.lower().endswith('.pdf') else "/api/v1/convert/img2dcm"
+                target_url = f"{go_dcm_url.rstrip('/')}{endpoint_path}"
+                
+                godcm_params = {
+                    "filetype": "pdf" if file_name.lower().endswith('.pdf') else "sc",
+                    "title": procedure_desc,
+                    "patient_name": patient_name.upper().strip().replace(' ', '^'),
+                    "patient_id": patient_id,
+                    "patient_birthdate": birth_date.replace('-', '') if birth_date else '',
+                    "patient_sex": gender.upper(),
+                    "study_instance_uid": study_uid,
+                    "series_instance_uid": series_uid,
+                    "generate_uids": False,
+                    "keys": [
+                        f"AccessionNumber={accession_number[:16]}",
+                        "Modality=DOC"
+                    ]
+                }
+                
+                files = {'file': (file_name, file_bytes)}
+                data_payload = {'parameters': json.dumps(godcm_params)}
+                
+                go_res = requests.post(target_url, files=files, data=data_payload, timeout=10)
+                if go_res.status_code == 200 and len(go_res.content) > 100:
+                    with open(filepath, 'wb') as f:
+                        f.write(go_res.content)
+                    dcm_converted_via_godcm = True
+            except Exception as go_err:
+                print(f"Panggilan go-dcm gagal, menggunakan enkapsulasi pydicom bawaan: {go_err}")
+
+        # Jika tidak menggunakan go-dcm atau fallback, gunakan enkapsulasi pydicom native
+        if not dcm_converted_via_godcm:
+            file_meta = Dataset()
+            file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.104.1' # Encapsulated PDF Storage
+            file_meta.MediaStorageSOPInstanceUID = generate_uid()
+            file_meta.TransferSyntaxUID = ImplicitVRLittleEndian
+            file_meta.ImplementationClassUID = '1.2.826.0.1.3680043.8.498.1'
+            file_meta.SourceApplicationEntityTitle = 'ORTHANC'
+
+            ds = FileDataset(filepath, {}, file_meta=file_meta, preamble=b'\x00' * 128)
+            ds.SpecificCharacterSet = 'ISO_IR 192'
+            
+            adjusted_name = patient_name.upper().strip().replace(' ', '^')
+            ds.PatientName = adjusted_name
+            ds.PatientID = patient_id
+            ds.PatientBirthDate = birth_date.replace('-', '') if birth_date else ''
+            ds.PatientSex = gender.upper()
+            
+            ds.StudyInstanceUID = study_uid
+            ds.SeriesInstanceUID = series_uid
+            ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+            ds.SOPClassUID = file_meta.MediaStorageSOPClassUID
+            
+            ds.AccessionNumber = accession_number[:16]
+            ds.Modality = 'DOC'
+            ds.StudyDescription = procedure_desc
+            ds.SeriesDescription = 'Encapsulated Document'
+            
+            now = datetime.now()
+            ds.StudyDate = now.strftime('%Y%m%d')
+            ds.StudyTime = now.strftime('%H%M%S')
+            ds.SeriesDate = now.strftime('%Y%m%d')
+            ds.SeriesTime = now.strftime('%H%M%S')
+            
+            # Enkapsulasi data file ke dataset DICOM
+            ds.EncapsulatedDocument = file_bytes
+            ds.MIMETypeOfEncapsulatedDocument = 'application/pdf' if file_name.lower().endswith('.pdf') else 'image/jpeg'
+            
+            # Simpan file WL & dataset
+            ds.is_little_endian = True
+            ds.is_implicit_VR = True
+            ds.save_as(filepath)
+
+        # Simpan ke model Worklist
+        Worklist.objects.update_or_create(
+            accession_number=accession_number,
+            defaults={
+                'patient_id': patient_id,
+                'patient_name': adjusted_name,
+                'birth_date': birth_date,
+                'gender': gender,
+                'procedure_desc': procedure_desc,
+                'scheduled_date': now.strftime('%Y-%m-%d'),
+                'modality': 'DOC',
+                'ae_title': 'DOC_ENCAP',
+                'study_instance_uid': study_uid,
+                'file_path': filepath,
+                'status': 'Berhasil',
+                'is_active': True
+            }
+        )
+
+        # Kirim berkas DICOM ke server Orthanc PACS jika diizinkan
+        pacs_message = ""
+        if send_to_pacs:
+            url = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+            user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+            password = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+            
+            with open(filepath, 'rb') as f:
+                dcm_bytes = f.read()
+                
+            res = requests.post(
+                f"{url.rstrip('/')}/instances",
+                data=dcm_bytes,
+                headers={'Content-Type': 'application/dicom'},
+                auth=(user, password),
+                timeout=10
+            )
+            if res.status_code in [200, 201]:
+                pacs_message = " dan berhasil dikirim ke Orthanc PACS"
+            else:
+                pacs_message = f" tetapi gagal kirim ke PACS (HTTP {res.status_code})"
+
+        WorklistLog.objects.create(
+            accession_number=accession_number,
+            patient_name=adjusted_name,
+            method=request.method,
+            status="Berhasil",
+            raw_payload=f"File: {file_name}, Modality: DOC",
+            error_message=None
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f"Dokumen DOC dengan ACSN '{accession_number}' berhasil dienkapsulasi{pacs_message}.",
+            'accession_number': accession_number,
+            'study_instance_uid': study_uid
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f"Terjadi kesalahan: {str(e)}"}, status=500)

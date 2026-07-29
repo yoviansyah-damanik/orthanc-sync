@@ -11,6 +11,8 @@ from bridge.views import sync_modalities_to_orthanc, orthanc_modalities_api, syn
 from bridge.views import orthanc_info_view, orthanc_info_api
 from bridge.views import run_schedule_now
 
+from bridge.views import doc_modality_page_view, doc_modality_upload_api
+
 urlpatterns = [
     path('.well-known/appspecific/com.chrome.devtools.json', lambda r: JsonResponse({})),
     path('admin/', admin.site.urls),
@@ -19,6 +21,9 @@ urlpatterns = [
     path('logout/', logout_view, name='logout'),
     path('profile/', profile_view, name='profile_page'),
     path('worklist/', worklist_page_view, name='worklist_page'),
+    path('modality-doc/', doc_modality_page_view, name='doc_modality_page'),
+    path('api/modality-doc/upload', doc_modality_upload_api, name='doc_modality_upload_api'),
+    path('api/doc/upload', doc_modality_upload_api, name='api_doc_upload'),
     path('monitoring/', monitoring_view, name='monitoring_page'),
     path('api-logs/', api_logs_page_view, name='api_logs_page'),
     path('api-docs/', api_docs_page_view, name='api_docs_page'),

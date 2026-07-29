@@ -84,7 +84,7 @@ class SystemConfig(models.Model):
     def get_val(cls, key, default=None):
         try:
             return cls.objects.get(key=key).value
-        except cls.DoesNotExist:
+        except Exception:
             return default
 
 class DicomDevice(models.Model):

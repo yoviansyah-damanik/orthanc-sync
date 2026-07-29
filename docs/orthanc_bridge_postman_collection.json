@@ -1,0 +1,391 @@
+{
+	"info": {
+		"_postman_id": "a9b8c7d6-e5f4-4321-8765-43210fe98765",
+		"name": "Orthanc Bridge API Collection",
+		"description": "Koleksi resmi REST API Orthanc Bridge (Orthanc Sync) untuk pengujian DICOM Worklist, Modality DOC Encapsulation, PACS Sync, dan Diagnostik Sistem.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:9123",
+			"type": "string"
+		},
+		{
+			"key": "apiKey",
+			"value": "YOUR_API_KEY",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Modality Worklist (MWL)",
+			"item": [
+				{
+					"name": "Create Worklist (Normal)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accession_number\": \"RAD20260001\",\n  \"patient_id\": \"RM123456\",\n  \"patient_name\": \"DOE^JOHN\",\n  \"birth_date\": \"1990-01-01\",\n  \"gender\": \"M\",\n  \"modality\": \"CR\",\n  \"procedure_desc\": \"THORAX AP/PA\",\n  \"scheduled_date\": \"2026-07-29\",\n  \"ae_title\": \"ANYMODALITY\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/worklist",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9123",
+							"path": [
+								"api",
+								"worklist"
+							]
+						},
+						"description": "Membuat entri DICOM Worklist (.wl) baru. Jika accession_number sudah ada, API akan menolak dengan HTTP 409 Conflict."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Worklist (Bypass Duplicate ACSN)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accession_number\": \"RAD20260001\",\n  \"patient_id\": \"RM123456\",\n  \"patient_name\": \"DOE^JOHN\",\n  \"birth_date\": \"1990-01-01\",\n  \"gender\": \"M\",\n  \"modality\": \"CR\",\n  \"procedure_desc\": \"THORAX AP/PA (UPDATED)\",\n  \"scheduled_date\": \"2026-07-29\",\n  \"ae_title\": \"ANYMODALITY\",\n  \"bypass\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/worklist",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9123",
+							"path": [
+								"api",
+								"worklist"
+							]
+						},
+						"description": "Memperbarui entri DICOM Worklist yang sudah ada dengan mengirimkan parameter bypass: true."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Worklist Detail",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/worklist/RAD20260001",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9123",
+							"path": [
+								"api",
+								"worklist",
+								"RAD20260001"
+							]
+						},
+						"description": "Mengambil rincian entri worklist berdasarkan Accession Number."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Worklist File (.wl)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/check-wl/RAD20260001",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9123",
+							"path": [
+								"api",
+								"check-wl",
+								"RAD20260001"
+							]
+						},
+						"description": "Memeriksa keberadaan file fisik .wl di folder penyimpanan server."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Worklist",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/worklist/RAD20260001",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9123",
+							"path": [
+								"api",
+								"worklist",
+								"RAD20260001"
+							]
+						},
+						"description": "Menghapus file fisik worklist (.wl) dan entri di database."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Modality DOC Encapsulation",
+			"item": [
+				{
+					"name": "Upload Document (Base64 JSON)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accession_number\": \"DOC20260001\",\n  \"patient_id\": \"RM123456\",\n  \"patient_name\": \"DOE^JOHN\",\n  \"procedure_desc\": \"Hasil Ekspertise Radiologi\",\n  \"file_b64\": \"JVBERi0xLjQKJ...\",\n  \"send_to_pacs\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/doc/upload",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9123",
+							"path": [
+								"api",
+								"doc",
+								"upload"
+							]
+						},
+						"description": "Mengunggah dokumen PDF/Gambar ter-encode Base64 untuk di-enkapsulasi menjadi berkas DICOM Modality DOC dan dikirim ke Orthanc PACS."
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Document (Multipart Form-Data)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "accession_number",
+									"value": "DOC20260002",
+									"type": "text"
+								},
+								{
+									"key": "patient_id",
+									"value": "RM123456",
+									"type": "text"
+								},
+								{
+									"key": "patient_name",
+									"value": "DOE^JOHN",
+									"type": "text"
+								},
+								{
+									"key": "procedure_desc",
+									"value": "Laporan Rekam Medis PDF",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": ""
+								},
+								{
+									"key": "send_to_pacs",
+									"value": "true",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/doc/upload",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9123",
+							"path": [
+								"api",
+								"doc",
+								"upload"
+							]
+						},
+						"description": "Mengunggah file PDF / Gambar via multipart form-data untuk dikonversi ke DICOM Encapsulated Document Modality DOC."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Diagnostics & PACS Query",
+			"item": [
+				{
+					"name": "System Health Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/status",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9123",
+							"path": [
+								"api",
+								"status"
+							]
+						},
+						"description": "Mengecek status kesehatan server, database, dan hak akses folder penyimpanan."
+					},
+					"response": []
+				},
+				{
+					"name": "Check PACS Study Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/check-study/RAD20260001",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9123",
+							"path": [
+								"api",
+								"check-study",
+								"RAD20260001"
+							]
+						},
+						"description": "Memeriksa apakah study dengan Accession Number tertentu sudah masuk di Orthanc PACS."
+					},
+					"response": []
+				},
+				{
+					"name": "Query Orthanc PACS Studies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orthanc-studies/?limit=10",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9123",
+							"path": [
+								"api",
+								"orthanc-studies",
+								""
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Mengambil daftar studi medis dari server Orthanc PACS."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
