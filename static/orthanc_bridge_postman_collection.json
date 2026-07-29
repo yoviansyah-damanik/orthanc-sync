@@ -5,18 +5,6 @@
 		"description": "Koleksi resmi REST API Orthanc Bridge (Orthanc Sync) untuk pengujian DICOM Worklist, Modality DOC Encapsulation, PACS Sync, dan Diagnostik Sistem.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
-	"variable": [
-		{
-			"key": "baseUrl",
-			"value": "http://localhost:9123",
-			"type": "string"
-		},
-		{
-			"key": "apiKey",
-			"value": "YOUR_API_KEY",
-			"type": "string"
-		}
-	],
 	"item": [
 		{
 			"name": "1. Modality Worklist (MWL)",
@@ -48,11 +36,9 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/worklist",
-							"protocol": "http",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "9123",
 							"path": [
 								"api",
 								"worklist"
@@ -89,11 +75,9 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/worklist",
-							"protocol": "http",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "9123",
 							"path": [
 								"api",
 								"worklist"
@@ -116,11 +100,9 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/worklist/RAD20260001",
-							"protocol": "http",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "9123",
 							"path": [
 								"api",
 								"worklist",
@@ -144,11 +126,9 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/check-wl/RAD20260001",
-							"protocol": "http",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "9123",
 							"path": [
 								"api",
 								"check-wl",
@@ -172,11 +152,9 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/worklist/RAD20260001",
-							"protocol": "http",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "9123",
 							"path": [
 								"api",
 								"worklist",
@@ -219,11 +197,9 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/doc/upload",
-							"protocol": "http",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "9123",
 							"path": [
 								"api",
 								"doc",
@@ -282,11 +258,9 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/doc/upload",
-							"protocol": "http",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "9123",
 							"path": [
 								"api",
 								"doc",
@@ -309,11 +283,9 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/status",
-							"protocol": "http",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "9123",
 							"path": [
 								"api",
 								"status"
@@ -336,11 +308,9 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/check-study/RAD20260001",
-							"protocol": "http",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "9123",
 							"path": [
 								"api",
 								"check-study",
@@ -364,11 +334,9 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/orthanc-studies/?limit=10",
-							"protocol": "http",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "9123",
 							"path": [
 								"api",
 								"orthanc-studies",
