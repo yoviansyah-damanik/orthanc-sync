@@ -3,15 +3,15 @@ from django.urls import path
 from django.http import JsonResponse
 from django.conf import settings
 from django.conf.urls.static import static
-from bridge.views import api_docs_page_view, api_logs_page_view, api_management_view, check_db_health, configuration_view, create_worklist_api, dashboard_view, database_setup_page, fix_folder_permissions, health_check_api, login_view, logout_view, profile_view, run_database_setup, test_db_api, test_orthanc_connection, worklist_detail_api, worklist_page_view, worklist_history_view, check_orthanc_study_api, check_worklist_file_api, user_guide_page_view, monitoring_view, monitoring_chart_api, dicom_scanner_view, dicom_scan_api, dicom_verify_api, dicom_register_api, dicom_delete_api, dicom_router_view, scheduled_backup_view, all_studies_view, orthanc_studies_api, orthanc_study_detail_api, dicom_transfer_api
+from bridge.views import api_docs_page_view, api_logs_page_view, api_management_view, check_db_health, configuration_view, create_worklist_api, dashboard_view, database_setup_page, fix_folder_permissions, health_check_api, login_view, logout_view, profile_view, run_database_setup, test_db_api, test_orthanc_connection, worklist_detail_api, worklist_page_view, worklist_history_view, check_orthanc_study_api, check_worklist_file_api, user_guide_page_view, about_page_view, monitoring_view, monitoring_chart_api, dicom_scanner_view, dicom_scan_api, dicom_verify_api, dicom_register_api, dicom_delete_api, dicom_router_view, scheduled_backup_view, all_studies_view, orthanc_studies_api, orthanc_study_detail_api, dicom_transfer_api
 
 from bridge.views import dicom_modify_api, routing_rules_api, sync_schedules_api, routing_logs_api, sync_logs_api
-from bridge.views import upload_logo_view, reset_logo_view
+from bridge.views import upload_logo_view, reset_logo_view, upload_favicon_view, reset_favicon_view
 from bridge.views import sync_modalities_to_orthanc, orthanc_modalities_api, sync_single_device_to_orthanc, sync_modality_to_local
 from bridge.views import orthanc_info_view, orthanc_info_api
 from bridge.views import run_schedule_now
 
-from bridge.views import doc_modality_page_view, doc_modality_upload_api
+from bridge.views import doc_modality_page_view, doc_modality_upload_api, doc_transfer_api, doc_delete_api
 
 urlpatterns = [
     path('.well-known/appspecific/com.chrome.devtools.json', lambda r: JsonResponse({})),
@@ -24,12 +24,15 @@ urlpatterns = [
     path('modality-doc/', doc_modality_page_view, name='doc_modality_page'),
     path('api/modality-doc/upload', doc_modality_upload_api, name='doc_modality_upload_api'),
     path('api/doc/upload', doc_modality_upload_api, name='api_doc_upload'),
+    path('api/doc/transfer', doc_transfer_api, name='doc_transfer_api'),
+    path('api/doc/<str:accession_number>', doc_delete_api, name='doc_delete_api'),
     path('monitoring/', monitoring_view, name='monitoring_page'),
     path('api-logs/', api_logs_page_view, name='api_logs_page'),
     path('api-docs/', api_docs_page_view, name='api_docs_page'),
     path('api-management/', api_management_view, name='api_management'),
     path('configuration/', configuration_view, name='configuration_page'),
     path('user-guide/', user_guide_page_view, name='user_guide_page'),
+    path('about/', about_page_view, name='about_page'),
     path('dicom-scanner/', dicom_scanner_view, name='dicom_scanner_page'),
     path('dicom-scanner/scan', dicom_scan_api, name='dicom_scan_api'),
     path('dicom-scanner/verify', dicom_verify_api, name='dicom_verify_api'),
@@ -64,6 +67,8 @@ urlpatterns = [
     path('api/orthanc-info/', orthanc_info_api, name='orthanc_info_api'),
     path('configuration/upload-logo', upload_logo_view, name='upload_logo'),
     path('configuration/reset-logo', reset_logo_view, name='reset_logo'),
+    path('configuration/upload-favicon', upload_favicon_view, name='upload_favicon'),
+    path('configuration/reset-favicon', reset_favicon_view, name='reset_favicon'),
     path('api/sync-modalities/', sync_modalities_to_orthanc, name='sync_modalities'),
     path('api/sync-modalities/<str:device_id>/', sync_single_device_to_orthanc, name='sync_single_modality'),
     path('api/orthanc-modalities/', orthanc_modalities_api, name='orthanc_modalities_api'),

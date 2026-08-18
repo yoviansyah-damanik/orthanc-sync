@@ -871,7 +871,10 @@ print(<span class="hl-var">response</span>.json())</code></pre>
                     <p class="text-slate-600 text-sm leading-relaxed mb-6">
                         Mengirimkan dokumen (PDF / Foto Medis) untuk di-enkapsulasi menjadi berkas standar DICOM
                         Modality DOC secara terotomatisasi. Mendukung pengiriman berkas via multipart form-data maupun
-                        payload JSON dengan file berformat base64.
+                        payload JSON dengan file berformat base64. Berkas hasil enkapsulasi disimpan di folder
+                        aplikasi (tidak dikirim ke Orthanc/modality manapun secara otomatis) &mdash; gunakan endpoint
+                        <code class="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">/api/doc/transfer</code>
+                        untuk mengirimkannya ke perangkat tujuan.
                     </p>
                     <div
                         class="bg-slate-900 rounded-2xl p-4 font-mono text-xs text-blue-400 shadow-inner mb-6 border border-slate-800 break-all select-all flex items-center justify-between">
@@ -935,13 +938,61 @@ print(<span class="hl-var">response</span>.json())</code></pre>
                                     <td class="py-3 text-slate-500">File PDF/JPG (multipart) atau Base64 string (JSON).
                                     </td>
                                 </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-100 pt-8 mt-8">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span
+                            class="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-wider">POST</span>
+                        <h3 class="text-base font-bold text-slate-900">Transfer Dokumen DOC ke Modality</h3>
+                    </div>
+                    <p class="text-slate-600 text-sm leading-relaxed mb-6">
+                        Mengirimkan berkas DICOM Modality DOC yang tersimpan di folder aplikasi langsung ke perangkat
+                        DICOM tujuan menggunakan DICOM C-STORE, tanpa melalui server Orthanc.
+                    </p>
+                    <div
+                        class="bg-slate-900 rounded-2xl p-4 font-mono text-xs text-blue-400 shadow-inner mb-6 border border-slate-800 break-all select-all flex items-center justify-between">
+                        <span>/api/doc/transfer</span>
+                        <button onclick="copyToClipboard('/api/doc/transfer', this)"
+                            class="text-slate-500 hover:text-blue-400 p-1 rounded hover:bg-slate-800 transition-all">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3">
+                                </path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Payload Fields (JSON /
+                        Form Data)</h4>
+                    <div class="overflow-x-auto mb-6">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-100 text-slate-400 uppercase text-[9px] font-black">
+                                    <th class="py-2.5">Field</th>
+                                    <th class="py-2.5">Tipe Data</th>
+                                    <th class="py-2.5">Deskripsi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 font-medium">
                                 <tr>
-                                    <td class="py-3 font-mono font-bold text-slate-900">send_to_pacs</td>
+                                    <td class="py-3 font-mono font-bold text-slate-900">accession_number *</td>
                                     <td class="py-3"><span
-                                            class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold">boolean</span>
-                                    </td>
-                                    <td class="py-3 text-slate-500">Kirim otomatis hasil DICOM ke server PACS (default:
-                                        true).</td>
+                                            class="px-2 py-0.5 bg-rose-50 text-rose-600 rounded text-[10px] font-bold">string
+                                            (required)</span></td>
+                                    <td class="py-3 text-slate-500">Nomor aksesi dokumen DOC yang akan ditransfer.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 font-mono font-bold text-slate-900">ae_title *</td>
+                                    <td class="py-3"><span
+                                            class="px-2 py-0.5 bg-rose-50 text-rose-600 rounded text-[10px] font-bold">string
+                                            (required)</span></td>
+                                    <td class="py-3 text-slate-500">AE Title perangkat DICOM tujuan. Dicari dari DICOM
+                                        Router yang terdaftar di aplikasi, atau dari Modalities yang terdaftar
+                                        langsung di Orthanc. Mengembalikan error 404 jika AE Title tidak ditemukan.</td>
                                 </tr>
                             </tbody>
                         </table>

@@ -7,7 +7,7 @@
     <!-- Header Stat Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div class="bg-white rounded-[2rem] p-8 card-shadow transition-all hover:shadow-2xl hover:shadow-blue-500/5">
-            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Worklist DOC</p>
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Dokumen DOC</p>
             <div class="flex items-end justify-between">
                 <h3 class="text-3xl font-black text-slate-900 leading-none">{{ stats.total_doc }}</h3>
                 <div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
@@ -31,9 +31,9 @@
         </div>
 
         <div class="bg-white rounded-[2rem] p-8 card-shadow transition-all hover:shadow-2xl hover:shadow-emerald-500/5">
-            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tersimpan di PACS</p>
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tersimpan di Aplikasi</p>
             <div class="flex items-end justify-between">
-                <h3 class="text-3xl font-black text-emerald-600 leading-none">{{ stats.pacs_doc }}</h3>
+                <h3 class="text-3xl font-black text-emerald-600 leading-none">{{ stats.stored_doc }}</h3>
                 <div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
@@ -59,7 +59,7 @@
     <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
         <div class="px-10 py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 border-b border-slate-100">
             <div>
-                <h2 class="text-xl font-bold text-gray-900">Dokumen Medis & Worklist (Modality DOC)</h2>
+                <h2 class="text-xl font-bold text-gray-900">Dokumen Medis (Modality DOC)</h2>
                 <p class="text-sm text-gray-500">Kelola dan konversi dokumen PDF / Citra ke format DICOM Encapsulated Document</p>
             </div>
             
@@ -90,7 +90,7 @@
                         <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Pasien</th>
                         <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Deskripsi Dokumen</th>
                         <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Modality</th>
-                        <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Worklist</th>
+                        <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                         <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
                     </tr>
                 </thead>
@@ -113,7 +113,7 @@
                         </td>
                         <td class="px-8 py-4 whitespace-nowrap text-center">
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-700">
-                                {{ item.modality }}
+                                DOC
                             </span>
                         </td>
                         <td class="px-8 py-4 whitespace-nowrap">
@@ -122,7 +122,10 @@
                             </span>
                         </td>
                         <td class="px-8 py-4 whitespace-nowrap text-right space-x-2">
-                            <button onclick="deleteDocWorklist('{{ item.accession_number }}')" class="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all" title="Hapus Worklist">
+                            <button onclick="openTransferModal('{{ item.accession_number }}')" class="p-2 text-slate-400 hover:text-blue-600 rounded-xl hover:bg-blue-50 transition-all" title="Transfer ke Modality">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                            </button>
+                            <button onclick="deleteDocWorklist('{{ item.accession_number }}')" class="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all" title="Hapus Dokumen">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                             </button>
                         </td>
@@ -198,14 +201,48 @@
                 <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.bmp" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
             </div>
 
-            <div class="flex items-center gap-3 pt-2">
-                <input type="checkbox" id="send_to_pacs" name="send_to_pacs" checked class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-slate-300">
-                <label for="send_to_pacs" class="text-xs font-medium text-gray-700">Kirim & simpan hasil DICOM langsung ke server Orthanc PACS</label>
-            </div>
+            <p class="text-[11px] text-gray-400 pt-1">Berkas DICOM hasil enkapsulasi akan disimpan di folder aplikasi. Gunakan tombol "Transfer" pada daftar dokumen untuk mengirimnya ke modality tujuan.</p>
 
             <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onclick="closeUploadModal()" class="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-gray-700 font-bold text-sm rounded-xl transition-all">Batal</button>
                 <button type="submit" id="submitBtn" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all shadow-lg shadow-blue-500/20">Proses & Enkapsulasi</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Transfer to Modality Modal -->
+<div id="transferModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-[2.5rem] max-w-md w-full p-8 card-shadow overflow-hidden transform transition-all">
+        <div class="flex items-center justify-between pb-6 border-b border-slate-100">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Transfer ke Modality</h3>
+                <p class="text-xs text-gray-500">Kirim berkas DICOM DOC langsung ke perangkat tujuan (C-STORE)</p>
+            </div>
+            <button onclick="closeTransferModal()" class="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-slate-100">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <form id="docTransferForm" onsubmit="submitDocTransfer(event)" class="mt-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" id="transferAcsn" name="accession_number">
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Accession Number</label>
+                <input type="text" id="transferAcsnDisplay" disabled class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm text-gray-500">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Perangkat Tujuan (AE Title) *</label>
+                <select name="ae_title" id="transferAeTitle" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="">-- Pilih DICOM Router Terdaftar --</option>
+                    {% for device in devices %}
+                    <option value="{{ device.ae_title }}">{{ device.name }} ({{ device.ae_title }}) - {{ device.host }}:{{ device.port }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onclick="closeTransferModal()" class="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-gray-700 font-bold text-sm rounded-xl transition-all">Batal</button>
+                <button type="submit" id="transferSubmitBtn" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all shadow-lg shadow-blue-500/20">Kirim</button>
             </div>
         </form>
     </div>
@@ -265,11 +302,85 @@ async function submitDocUpload(e) {
     }
 }
 
-// Hapus Worklist DOC
-async function deleteDocWorklist(acsn) {
-    if (!confirm(`Hapus worklist DOC dengan Accession Number ${acsn}?`)) return;
+// Modal transfer ke modality
+function openTransferModal(acsn) {
+    document.getElementById('transferAcsn').value = acsn;
+    document.getElementById('transferAcsnDisplay').value = acsn;
+    document.getElementById('transferModal').classList.remove('hidden');
+    loadOrthancModalityOptions();
+}
+
+// Lengkapi pilihan AE Title dengan Modalities yang terdaftar langsung di Orthanc
+// (mis. AE seperti DCMROUTER yang belum tentu ada di tabel DICOM Router aplikasi)
+async function loadOrthancModalityOptions() {
+    const select = document.getElementById('transferAeTitle');
+    const existingAe = new Set(
+        Array.from(select.options).map(o => o.value.toUpperCase()).filter(v => v)
+    );
+
     try {
-        const res = await fetch(`/api/worklist/${acsn}`, {
+        const res = await fetch("{% url 'orthanc_modalities_api' %}");
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.modalities)) return;
+
+        data.modalities.forEach(m => {
+            const aet = (m.AET || '').trim();
+            if (!aet || existingAe.has(aet.toUpperCase())) return;
+            existingAe.add(aet.toUpperCase());
+
+            const opt = document.createElement('option');
+            opt.value = aet;
+            opt.textContent = `${m.name} (${aet}) - ${m.Host}:${m.Port} [Orthanc]`;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        // Diamkan — dropdown tetap menampilkan DICOM Router yang terdaftar di aplikasi
+    }
+}
+
+function closeTransferModal() {
+    document.getElementById('transferModal').classList.add('hidden');
+}
+
+// Kirim berkas DOC ke modality tujuan
+async function submitDocTransfer(e) {
+    e.preventDefault();
+    const form = document.getElementById('docTransferForm');
+    const formData = new FormData(form);
+    const btn = document.getElementById('transferSubmitBtn');
+
+    btn.disabled = true;
+    btn.innerText = 'Mengirim...';
+
+    try {
+        const res = await fetch("{% url 'doc_transfer_api' %}", {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+            closeTransferModal();
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.message || 'Gagal mengirim berkas ke modality.', 'error');
+        }
+    } catch (err) {
+        showToast('Kesalahan sistem: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Kirim';
+    }
+}
+
+// Hapus Dokumen DOC
+async function deleteDocWorklist(acsn) {
+    if (!confirm(`Hapus dokumen DOC dengan Accession Number ${acsn}?`)) return;
+    try {
+        const res = await fetch(`/api/doc/${acsn}`, {
             method: 'DELETE',
             headers: {
                 'X-CSRFToken': '{{ csrf_token }}'
@@ -277,7 +388,7 @@ async function deleteDocWorklist(acsn) {
         });
         const data = await res.json();
         if (data.success) {
-            showToast(`Worklist DOC dengan ACSN '${acsn}' berhasil dihapus.`, 'success');
+            showToast(`Dokumen DOC dengan ACSN '${acsn}' berhasil dihapus.`, 'success');
             setTimeout(() => location.reload(), 1200);
         } else {
             showToast('Gagal menghapus: ' + data.message, 'error');

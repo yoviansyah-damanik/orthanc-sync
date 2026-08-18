@@ -53,6 +53,28 @@ class Worklist(models.Model):
     class Meta:
         ordering = ['-updated_at']
 
+class DocDocument(models.Model):
+    """Model untuk menyimpan dokumen medis (PDF/Citra) hasil enkapsulasi Modality DOC.
+    Terpisah dari Worklist agar tidak ikut tercatat sebagai jadwal worklist modality nyata."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    accession_number = models.CharField(max_length=50, unique=True)
+    patient_id = models.CharField(max_length=50)
+    patient_name = models.CharField(max_length=255)
+    birth_date = models.CharField(max_length=20, blank=True, null=True)
+    gender = models.CharField(max_length=10, blank=True, null=True)
+    procedure_desc = models.CharField(max_length=255, blank=True, null=True)
+    study_instance_uid = models.CharField(max_length=100, blank=True, null=True)
+    file_path = models.CharField(max_length=500, blank=True, null=True)
+    status = models.CharField(max_length=20, default="Berhasil")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.accession_number} - {self.patient_name}"
+
+    class Meta:
+        ordering = ['-created_at']
+
 class WorklistLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     """Model untuk audit log setiap request API (Success, Error, Duplicate, dll)"""

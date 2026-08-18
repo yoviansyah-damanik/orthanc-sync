@@ -3,7 +3,7 @@ import os
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from bridge.models import APIKey, Worklist, WorklistLog, SystemConfig
+from bridge.models import APIKey, Worklist, DocDocument, WorklistLog, SystemConfig
 
 User = get_user_model()
 
@@ -98,7 +98,7 @@ class DocModalityTestCase(TestCase):
         self.api_key = APIKey.objects.create(name='DocSystem', key='dockey123')
         self.client = Client()
         
-        Worklist.objects.filter(accession_number='ACSN-DOC-TEST').delete()
+        DocDocument.objects.filter(accession_number='ACSN-DOC-TEST').delete()
         wl_dir = SystemConfig.get_val('WORKLIST_DIR', 'C:/Orthanc/Worklists')
         test_file = os.path.join(wl_dir, 'ACSN-DOC-TEST.wl')
         if os.path.exists(test_file):
@@ -149,7 +149,7 @@ class DocModalityTestCase(TestCase):
         self.assertTrue(res_data.get('success'))
         self.assertEqual(res_data.get('accession_number'), 'ACSN-DOC-TEST')
 
-        # Verifikasi record Worklist di database
-        wl = Worklist.objects.get(accession_number='ACSN-DOC-TEST')
-        self.assertEqual(wl.modality, 'DOC')
-        self.assertEqual(wl.patient_id, 'RM-DOC-001')
+        # Verifikasi record tersimpan di DocDocument (bukan Worklist)
+        self.assertFalse(Worklist.objects.filter(accession_number='ACSN-DOC-TEST').exists())
+        doc = DocDocument.objects.get(accession_number='ACSN-DOC-TEST')
+        self.assertEqual(doc.patient_id, 'RM-DOC-001')

@@ -6,7 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Orthanc Bridge{% endblock %}</title>
-    <link rel="icon" type="image/png" href="{% if logo_url %}{{ logo_url }}{% else %}{% static 'img/logo-icon.png' %}{% endif %}">
+    <link rel="icon" type="image/png" href="{% if favicon_url %}{{ favicon_url }}{% else %}{% static 'img/favicon.png' %}{% endif %}">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -152,7 +152,7 @@
         <div class="flex flex-col h-full">
             <div class="p-6 flex items-center justify-between">
                 <div class="flex items-center space-x-3">
-                    <img src="{% if logo_url %}{{ logo_url }}{% else %}{% static 'img/logo-icon.png' %}{% endif %}" alt="Logo" class="w-10 h-10 object-contain">
+                    <img src="{% if logo_url %}{{ logo_url }}{% else %}{% static 'img/logo-icon.png' %}{% endif %}" alt="Logo" class="h-10 w-auto max-w-[8rem] object-contain flex-shrink-0">
                     <h1 class="text-xs font-black text-gray-900 uppercase tracking-tighter">{{ app_name }}</h1>
                 </div>
                 <button onclick="toggleMobileSidebar()" class="p-2 text-gray-400 hover:text-gray-600">
@@ -187,11 +187,11 @@
         class="w-64 bg-white flex-shrink-0 hidden md:flex flex-col sticky top-0 h-screen shadow-[10px_0_30px_-15px_rgba(0,0,0,0.05)] border-r border-slate-100">
         <!-- Bagian atas: Logo dan Judul Aplikasi (tetap/tidak scroll) -->
         <div class="p-6 pb-2">
-            <div class="flex items-center space-x-4 mb-8">
-                <div class="relative">
+            <div class="flex flex-col items-center text-center mb-8">
+                <div class="relative flex-shrink-0 mb-3">
                     <div class="absolute inset-0 bg-blue-600 blur-xl opacity-20"></div>
                     <img src="{% if logo_url %}{{ logo_url }}{% else %}{% static 'img/logo-icon.png' %}{% endif %}" alt="Logo"
-                        class="relative w-12 h-12 object-contain rounded-2xl">
+                        class="relative h-16 w-auto max-w-[10rem] object-contain">
                 </div>
                 <div class="min-w-0">
                     <h1 class="text-sm font-black text-gray-900 tracking-tight leading-tight uppercase">{{ app_name }}

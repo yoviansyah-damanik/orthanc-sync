@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, APIKey, Worklist, WorklistLog, SystemConfig, DicomDevice, RoutingRule, RoutingLog, SyncSchedule, SyncLog
+from .models import User, APIKey, Worklist, DocDocument, WorklistLog, SystemConfig, DicomDevice, RoutingRule, RoutingLog, SyncSchedule, SyncLog
 
 admin.site.register(User)
 
@@ -13,6 +13,12 @@ class WorklistAdmin(admin.ModelAdmin):
     list_display = ('accession_number', 'patient_id', 'patient_name', 'modality', 'status', 'is_active', 'created_at')
     search_fields = ('accession_number', 'patient_id', 'patient_name')
     list_filter = ('modality', 'status', 'is_active')
+
+@admin.register(DocDocument)
+class DocDocumentAdmin(admin.ModelAdmin):
+    list_display = ('accession_number', 'patient_id', 'patient_name', 'status', 'created_at')
+    search_fields = ('accession_number', 'patient_id', 'patient_name')
+    list_filter = ('status',)
 
 @admin.register(WorklistLog)
 class WorklistLogAdmin(admin.ModelAdmin):

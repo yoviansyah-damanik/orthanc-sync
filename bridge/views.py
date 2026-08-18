@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import io
 import requests
 import urllib3
 import secrets
@@ -25,16 +26,22 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 from django.conf import settings
 
+from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import generate_uid, ImplicitVRLittleEndian
 from pydicom.sequence import Sequence
 from pynetdicom import AE
 from pynetdicom.sop_class import Verification
 
-from .models import APIKey, SystemConfig, WorklistLog, Worklist, DicomDevice, RoutingRule, RoutingLog, SyncSchedule, SyncLog
+from .models import APIKey, SystemConfig, WorklistLog, Worklist, DocDocument, DicomDevice, RoutingRule, RoutingLog, SyncSchedule, SyncLog, TransferLog
 
 def get_worklist_dir():
     return SystemConfig.get_val('WORKLIST_DIR', 'C:/Orthanc/Worklists')
+
+def get_doc_storage_dir():
+    path = os.path.join(settings.MEDIA_ROOT, 'documents')
+    os.makedirs(path, exist_ok=True)
+    return path
 
 # Decorator untuk validasi API Key pada endpoint eksternal
 def api_key_required(f):
@@ -306,6 +313,11 @@ def api_docs_page_view(request):
 def user_guide_page_view(request):
     # Render halaman petunjuk penggunaan aplikasi untuk operator klinis
     return render(request, 'user_guide.html')
+
+@login_required
+def about_page_view(request):
+    # Render halaman informasi tentang aplikasi (versi, modul, dan kontak developer)
+    return render(request, 'about.html')
 
 @login_required
 def api_management_view(request):
@@ -2404,27 +2416,94 @@ def reset_logo_view(request):
     return redirect('configuration_page')
 
 
+@login_required
+@require_http_methods(["POST"])
+def upload_favicon_view(request):
+    """Mengupload favicon kustom untuk menggantikan favicon default aplikasi."""
+    favicon_file = request.FILES.get('favicon')
+    if not favicon_file:
+        messages.error(request, "Tidak ada file yang dipilih.")
+        return redirect('configuration_page')
+
+    allowed_types = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon']
+    if favicon_file.content_type not in allowed_types:
+        messages.error(request, "Format file tidak didukung. Gunakan PNG, JPG, SVG, atau ICO.")
+        return redirect('configuration_page')
+
+    max_size = 2 * 1024 * 1024  # 2 MB
+    if favicon_file.size > max_size:
+        messages.error(request, "Ukuran file maksimal 2MB.")
+        return redirect('configuration_page')
+
+    media_dir = os.path.join(settings.MEDIA_ROOT, 'branding')
+    os.makedirs(media_dir, exist_ok=True)
+
+    ext = os.path.splitext(favicon_file.name)[1].lower() or '.png'
+    dest_path = os.path.join(media_dir, f'favicon{ext}')
+
+    # Hapus file favicon lama jika ada
+    for f in os.listdir(media_dir):
+        if f.startswith('favicon'):
+            os.remove(os.path.join(media_dir, f))
+
+    with open(dest_path, 'wb+') as destination:
+        for chunk in favicon_file.chunks():
+            destination.write(chunk)
+
+    SystemConfig.objects.update_or_create(
+        key='CUSTOM_FAVICON_PATH',
+        defaults={'value': f'branding/favicon{ext}', 'description': 'Path favicon kustom relatif dari MEDIA_ROOT'}
+    )
+    from django.core.cache import cache
+    cache.delete('ctx_favicon_url')
+
+    messages.success(request, "Favicon berhasil diperbarui.")
+    return redirect('configuration_page')
+
+
+@login_required
+@require_http_methods(["POST"])
+def reset_favicon_view(request):
+    """Menghapus favicon kustom dan mengembalikan ke favicon default."""
+    try:
+        config = SystemConfig.objects.get(key='CUSTOM_FAVICON_PATH')
+        file_path = os.path.join(settings.MEDIA_ROOT, config.value)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        config.delete()
+    except SystemConfig.DoesNotExist:
+        pass
+
+    from django.core.cache import cache
+    cache.delete('ctx_favicon_url')
+
+    messages.success(request, "Favicon berhasil direset ke default.")
+    return redirect('configuration_page')
+
+
 # --- MODALITY DOC VIEWS & API ---
 
 @login_required
 def doc_modality_page_view(request):
     """View untuk halaman pengelola Modality DOC (Dokumen & Foto Medis)"""
-    doc_items = Worklist.objects.filter(modality__iexact='DOC').order_by('-created_at')
-    
+    doc_items = DocDocument.objects.all().order_by('-created_at')
+    devices = DicomDevice.objects.exclude(ae_title='').order_by('name')
+
     # Hitung statistik data Modality DOC
     today = timezone.now().date()
     total_doc = doc_items.count()
     today_doc = doc_items.filter(created_at__date=today).count()
-    pacs_doc = doc_items.filter(status='Berhasil').count()
-    
+    stored_doc = doc_items.filter(status='Berhasil').count()
+
     stats = {
         'total_doc': total_doc,
         'today_doc': today_doc,
-        'pacs_doc': pacs_doc
+        'stored_doc': stored_doc
     }
-    
+
     return render(request, 'doc_modality.html', {
         'doc_items': doc_items,
+        'devices': devices,
         'stats': stats
     })
 
@@ -2433,7 +2512,7 @@ def doc_modality_page_view(request):
 @api_key_or_login_required
 @require_http_methods(["POST"])
 def doc_modality_upload_api(request):
-    """API untuk mengunggah dan meng-enkapsulasi PDF / Gambar ke format DICOM Modality DOC"""
+    """API untuk mengunggah dan meng-enkapsulasi PDF / Gambar ke format DICOM Modality DOC tanpa membuat file .wl"""
     try:
         data = {}
         file_bytes = None
@@ -2442,7 +2521,7 @@ def doc_modality_upload_api(request):
         # Penanganan tipe konten (JSON vs Multipart Form-Data)
         if request.content_type == 'application/json' or (request.body and not request.FILES):
             try:
-                data = json.loads(request.body.decode('utf-8'))
+                data = json.loads(request.body.decode('utf-8', errors='ignore'))
             except Exception:
                 data = {}
             accession_number = str(data.get('accession_number', '')).strip()
@@ -2451,7 +2530,6 @@ def doc_modality_upload_api(request):
             birth_date = data.get('birth_date', '')
             gender = data.get('gender', 'O')
             procedure_desc = data.get('procedure_desc') or data.get('title', 'Medical Document')
-            send_to_pacs = data.get('send_to_pacs', True)
             is_bypass = data.get('bypass', False)
             file_name = data.get('file_name', 'document.pdf')
             
@@ -2468,7 +2546,6 @@ def doc_modality_upload_api(request):
             birth_date = request.POST.get('birth_date', '')
             gender = request.POST.get('gender', 'O')
             procedure_desc = request.POST.get('procedure_desc', 'Medical Document')
-            send_to_pacs = request.POST.get('send_to_pacs') == 'on' or request.POST.get('send_to_pacs') == 'true' or request.POST.get('send_to_pacs') is None
             is_bypass = request.POST.get('bypass') == 'true'
             
             uploaded_file = request.FILES.get('file')
@@ -2482,23 +2559,23 @@ def doc_modality_upload_api(request):
         if not accession_number or not patient_id or not patient_name:
             return JsonResponse({'success': False, 'message': 'Accession Number, Patient ID, dan Patient Name wajib diisi'}, status=400)
 
-        # Validasi duplikasi Accession Number
-        worklist_dir = get_worklist_dir()
-        if not os.path.exists(worklist_dir):
-            os.makedirs(worklist_dir, exist_ok=True)
-            
-        filepath = os.path.join(worklist_dir, f"{accession_number}.wl")
-        acsn_exists_db = Worklist.objects.filter(accession_number__iexact=accession_number).exists()
-        acsn_exists_file = os.path.exists(filepath)
-        
-        if not is_bypass and (acsn_exists_db or acsn_exists_file):
+        # Formatter nama pasien standar DICOM
+        adjusted_name = patient_name.upper().strip().replace(' ', '^')
+
+        # Validasi duplikasi Accession Number pada database (cek lintas tabel Worklist & DocDocument)
+        acsn_exists_db = (
+            Worklist.objects.filter(accession_number__iexact=accession_number).exists()
+            or DocDocument.objects.filter(accession_number__iexact=accession_number).exists()
+        )
+
+        if not is_bypass and acsn_exists_db:
             error_msg = f"Validasi Gagal: Accession Number '{accession_number}' sudah terdaftar dalam sistem."
             WorklistLog.objects.create(
                 accession_number=accession_number,
-                patient_name=patient_name,
+                patient_name=adjusted_name,
                 method=request.method,
                 status="Duplikat",
-                raw_payload=request.body.decode('utf-8', errors='ignore') if hasattr(request, 'body') and request.body else None,
+                raw_payload=f"ACSN: {accession_number}, File: {file_name}, Modality: DOC",
                 error_message=error_msg
             )
             return JsonResponse({'success': False, 'message': error_msg, 'error_code': 'DUPLICATE_ACCESSION_NUMBER'}, status=409)
@@ -2508,6 +2585,7 @@ def doc_modality_upload_api(request):
         dcm_converted_via_godcm = False
         study_uid = generate_uid()
         series_uid = generate_uid()
+        dcm_bytes = None
         
         if go_dcm_url:
             try:
@@ -2518,7 +2596,7 @@ def doc_modality_upload_api(request):
                 godcm_params = {
                     "filetype": "pdf" if file_name.lower().endswith('.pdf') else "sc",
                     "title": procedure_desc,
-                    "patient_name": patient_name.upper().strip().replace(' ', '^'),
+                    "patient_name": adjusted_name,
                     "patient_id": patient_id,
                     "patient_birthdate": birth_date.replace('-', '') if birth_date else '',
                     "patient_sex": gender.upper(),
@@ -2536,14 +2614,13 @@ def doc_modality_upload_api(request):
                 
                 go_res = requests.post(target_url, files=files, data=data_payload, timeout=10)
                 if go_res.status_code == 200 and len(go_res.content) > 100:
-                    with open(filepath, 'wb') as f:
-                        f.write(go_res.content)
+                    dcm_bytes = go_res.content
                     dcm_converted_via_godcm = True
             except Exception as go_err:
                 print(f"Panggilan go-dcm gagal, menggunakan enkapsulasi pydicom bawaan: {go_err}")
 
-        # Jika tidak menggunakan go-dcm atau fallback, gunakan enkapsulasi pydicom native
-        if not dcm_converted_via_godcm:
+        # Jika tidak menggunakan go-dcm atau fallback, gunakan enkapsulasi pydicom native ke memori
+        if not dcm_converted_via_godcm or not dcm_bytes:
             file_meta = Dataset()
             file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.104.1' # Encapsulated PDF Storage
             file_meta.MediaStorageSOPInstanceUID = generate_uid()
@@ -2551,10 +2628,9 @@ def doc_modality_upload_api(request):
             file_meta.ImplementationClassUID = '1.2.826.0.1.3680043.8.498.1'
             file_meta.SourceApplicationEntityTitle = 'ORTHANC'
 
-            ds = FileDataset(filepath, {}, file_meta=file_meta, preamble=b'\x00' * 128)
+            ds = FileDataset("", {}, file_meta=file_meta, preamble=b'\x00' * 128)
             ds.SpecificCharacterSet = 'ISO_IR 192'
             
-            adjusted_name = patient_name.upper().strip().replace(' ', '^')
             ds.PatientName = adjusted_name
             ds.PatientID = patient_id
             ds.PatientBirthDate = birth_date.replace('-', '') if birth_date else ''
@@ -2580,13 +2656,24 @@ def doc_modality_upload_api(request):
             ds.EncapsulatedDocument = file_bytes
             ds.MIMETypeOfEncapsulatedDocument = 'application/pdf' if file_name.lower().endswith('.pdf') else 'image/jpeg'
             
-            # Simpan file WL & dataset
             ds.is_little_endian = True
             ds.is_implicit_VR = True
-            ds.save_as(filepath)
+            
+            # Enkapsulasi ke byte stream memori (tanpa membuat file .wl)
+            buf = io.BytesIO()
+            ds.save_as(buf)
+            dcm_bytes = buf.getvalue()
 
-        # Simpan ke model Worklist
-        Worklist.objects.update_or_create(
+        now = datetime.now()
+
+        # Simpan berkas DICOM hasil enkapsulasi ke folder aplikasi (tidak dikirim ke Orthanc/modality apapun)
+        doc_dir = get_doc_storage_dir()
+        saved_file_path = os.path.join(doc_dir, f"{accession_number}.dcm")
+        with open(saved_file_path, 'wb') as f:
+            f.write(dcm_bytes)
+
+        # Simpan ke model DocDocument (terpisah dari Worklist, bukan jadwal worklist modality nyata)
+        DocDocument.objects.update_or_create(
             accession_number=accession_number,
             defaults={
                 'patient_id': patient_id,
@@ -2594,53 +2681,172 @@ def doc_modality_upload_api(request):
                 'birth_date': birth_date,
                 'gender': gender,
                 'procedure_desc': procedure_desc,
-                'scheduled_date': now.strftime('%Y-%m-%d'),
-                'modality': 'DOC',
-                'ae_title': 'DOC_ENCAP',
                 'study_instance_uid': study_uid,
-                'file_path': filepath,
+                'file_path': saved_file_path,
                 'status': 'Berhasil',
-                'is_active': True
             }
         )
-
-        # Kirim berkas DICOM ke server Orthanc PACS jika diizinkan
-        pacs_message = ""
-        if send_to_pacs:
-            url = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
-            user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
-            password = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
-            
-            with open(filepath, 'rb') as f:
-                dcm_bytes = f.read()
-                
-            res = requests.post(
-                f"{url.rstrip('/')}/instances",
-                data=dcm_bytes,
-                headers={'Content-Type': 'application/dicom'},
-                auth=(user, password),
-                timeout=10
-            )
-            if res.status_code in [200, 201]:
-                pacs_message = " dan berhasil dikirim ke Orthanc PACS"
-            else:
-                pacs_message = f" tetapi gagal kirim ke PACS (HTTP {res.status_code})"
 
         WorklistLog.objects.create(
             accession_number=accession_number,
             patient_name=adjusted_name,
             method=request.method,
             status="Berhasil",
-            raw_payload=f"File: {file_name}, Modality: DOC",
+            raw_payload=f"File: {file_name}, Modality: DOC, StoredAt: {saved_file_path}",
             error_message=None
         )
 
         return JsonResponse({
             'success': True,
-            'message': f"Dokumen DOC dengan ACSN '{accession_number}' berhasil dienkapsulasi{pacs_message}.",
+            'message': f"Dokumen DOC dengan ACSN '{accession_number}' berhasil dienkapsulasi dan disimpan di folder aplikasi.",
             'accession_number': accession_number,
-            'study_instance_uid': study_uid
+            'study_instance_uid': study_uid,
+            'file_path': saved_file_path
         })
 
     except Exception as e:
         return JsonResponse({'success': False, 'message': f"Terjadi kesalahan: {str(e)}"}, status=500)
+
+
+def _log_doc_transfer(worklist_item, target_device_name, status, error_message=None, device=None):
+    TransferLog.objects.create(
+        study_id=worklist_item.study_instance_uid,
+        patient_name=worklist_item.patient_name,
+        patient_id=worklist_item.patient_id,
+        accession_number=worklist_item.accession_number,
+        modality='DOC',
+        target_device=device,
+        target_device_name=target_device_name,
+        status=status,
+        error_message=error_message
+    )
+
+
+def _find_transfer_target(ae_title):
+    """
+    Cari perangkat tujuan berdasarkan AE Title, baik dari DicomDevice (DICOM Router
+    yang terdaftar di aplikasi) maupun dari daftar Modalities yang terdaftar
+    langsung di Orthanc (mis. AE yang hanya didaftarkan via Orthanc, seperti DCMROUTER).
+    Mengembalikan (host, port, ae_title, name, device) atau None jika tidak ditemukan.
+    """
+    try:
+        device = DicomDevice.objects.filter(ae_title__iexact=ae_title).first()
+    except Exception:
+        device = None
+
+    if device:
+        return device.host, device.port, device.ae_title, device.name, device
+
+    # Fallback: cari di Modalities yang terdaftar langsung di Orthanc
+    try:
+        url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
+        user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+        pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+        r = requests.get(f"{url.rstrip('/')}/modalities?expand", auth=(user, pw), timeout=5)
+        if r.status_code == 200:
+            for name, info in r.json().items():
+                if str(info.get('AET', '')).strip().upper() == ae_title.upper():
+                    return info.get('Host'), int(info.get('Port', 104)), info.get('AET'), name, None
+    except Exception:
+        pass
+
+    return None
+
+
+@csrf_exempt
+@api_key_or_login_required
+@require_http_methods(["POST"])
+def doc_transfer_api(request):
+    """API untuk mengirim berkas DICOM DOC yang tersimpan di folder aplikasi langsung ke modality tujuan via C-STORE (tanpa melalui Orthanc)"""
+    try:
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            data = request.POST
+
+        accession_number = str(data.get('accession_number', '')).strip()
+        ae_title = str(data.get('ae_title', '')).strip()
+
+        if not accession_number or not ae_title:
+            return JsonResponse({"success": False, "message": "Accession Number dan AE Title tujuan wajib disertakan."}, status=400)
+
+        try:
+            worklist_item = DocDocument.objects.get(accession_number__iexact=accession_number)
+        except DocDocument.DoesNotExist:
+            return JsonResponse({"success": False, "message": "Dokumen DOC dengan Accession Number tersebut tidak ditemukan."}, status=404)
+
+        if not worklist_item.file_path or not os.path.exists(worklist_item.file_path):
+            return JsonResponse({"success": False, "message": "Berkas DICOM tidak ditemukan di folder aplikasi."}, status=404)
+
+        target = _find_transfer_target(ae_title)
+        if not target:
+            return JsonResponse({"success": False, "message": f"AE Title '{ae_title}' tidak ditemukan. Pastikan DICOM Router sudah terdaftar pada aplikasi atau di Modalities Orthanc."}, status=404)
+
+        host, port, target_ae_title, target_name, device = target
+
+        ds = dcmread(worklist_item.file_path)
+        transfer_syntax = ds.file_meta.TransferSyntaxUID if hasattr(ds, 'file_meta') else ImplicitVRLittleEndian
+
+        calling_aet = SystemConfig.get_val('LOCAL_AE_TITLE', 'ORTHANC_BRIDGE')
+        ae = AE(ae_title=calling_aet)
+        ae.add_requested_context(ds.SOPClassUID, transfer_syntax)
+        ae.connection_timeout = 10
+        ae.acse_timeout = 10
+        ae.network_timeout = 30
+        ae.dimse_timeout = 30
+
+        assoc = ae.associate(host, port, ae_title=target_ae_title or None)
+
+        if not assoc.is_established:
+            _log_doc_transfer(worklist_item, target_name, 'Failed', 'Asosiasi DICOM ditolak (Cek AE Title/Host/Port tujuan).', device=device)
+            return JsonResponse({"success": False, "message": "Gagal terhubung ke perangkat tujuan (Asosiasi Ditolak)."}, status=502)
+
+        try:
+            status = assoc.send_c_store(ds)
+        except Exception as e:
+            assoc.release()
+            _log_doc_transfer(worklist_item, target_name, 'Failed', str(e), device=device)
+            return JsonResponse({"success": False, "message": f"Gagal mengirim C-STORE: {str(e)}"}, status=500)
+
+        assoc.release()
+
+        if status and status.Status == 0x0000:
+            _log_doc_transfer(worklist_item, target_name, 'Success', device=device)
+            return JsonResponse({"success": True, "message": f"Berkas DOC '{accession_number}' berhasil dikirim ke {target_name} ({target_ae_title})."})
+        else:
+            err_msg = f"C-STORE gagal (Status: {status.Status if status else 'Unknown'})"
+            _log_doc_transfer(worklist_item, target_name, 'Failed', err_msg, device=device)
+            return JsonResponse({"success": False, "message": err_msg}, status=500)
+
+    except Exception as e:
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
+
+@csrf_exempt
+@api_key_or_login_required
+@require_http_methods(["DELETE"])
+def doc_delete_api(request, accession_number):
+    """Menghapus dokumen Modality DOC (berkas fisik & rekaman DocDocument) berdasarkan Accession Number."""
+    try:
+        doc_item = DocDocument.objects.get(accession_number__iexact=accession_number)
+    except DocDocument.DoesNotExist:
+        return JsonResponse({"success": False, "message": "Dokumen DOC dengan Accession Number tersebut tidak ditemukan."}, status=404)
+
+    if doc_item.file_path and os.path.exists(doc_item.file_path):
+        try:
+            os.remove(doc_item.file_path)
+        except Exception as e:
+            return JsonResponse({"success": False, "message": f"Gagal menghapus berkas: {str(e)}"}, status=500)
+
+    patient_name = doc_item.patient_name
+    doc_item.delete()
+
+    WorklistLog.objects.create(
+        accession_number=accession_number,
+        patient_name=patient_name,
+        method=request.method,
+        status="Dihapus",
+        error_message="Dokumen DOC dihapus via API"
+    )
+
+    return JsonResponse({"success": True, "message": "Dokumen DOC berhasil dihapus."})

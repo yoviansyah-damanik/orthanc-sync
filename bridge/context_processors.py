@@ -9,7 +9,7 @@ from .models import SystemConfig
 # TTL cache (detik)
 _ORTHANC_STATUS_TTL = 15   # status koneksi: refresh setiap 15 detik
 _ORTHANC_CREDS_TTL  = 120  # kredensial Orthanc: jarang berubah
-_LOGO_TTL           = 120  # logo: jarang berubah
+_LOGO_TTL           = 120  # logo & favicon: jarang berubah
 
 def orthanc_status(request):
     """
@@ -27,11 +27,24 @@ def orthanc_status(request):
             pass
         cache.set('ctx_logo_url', logo_url, _LOGO_TTL)
 
+    # Favicon URL — cache 120 detik, hanya 1 DB query tiap 2 menit
+    favicon_url = cache.get('ctx_favicon_url', '__unset__')
+    if favicon_url == '__unset__':
+        favicon_url = None
+        try:
+            custom_favicon = SystemConfig.objects.get(key='CUSTOM_FAVICON_PATH')
+            favicon_url = settings.MEDIA_URL + custom_favicon.value
+        except (SystemConfig.DoesNotExist, Exception):
+            pass
+        cache.set('ctx_favicon_url', favicon_url, _LOGO_TTL)
+
     context = {
         'app_name':      os.getenv('APP_NAME', 'Orthanc Bridge'),
+        'app_version':   os.getenv('APP_VERSION', '1.0.0'),
         'hospital_name': os.getenv('HOSPITAL_NAME', 'Rumah Sakit'),
         'current_year':  timezone.now().year,
         'logo_url':      logo_url,
+        'favicon_url':   favicon_url,
     }
 
     if not request.user.is_authenticated:
@@ -156,6 +169,11 @@ def sidebar_data(request):
                     'name': 'Konfigurasi',
                     'url': 'configuration_page',
                     'icon': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>'
+                },
+                {
+                    'name': 'Tentang Aplikasi',
+                    'url': 'about_page',
+                    'icon': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
                 },
             ]
         }
