@@ -47,10 +47,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
                 ('name', models.CharField(max_length=150)),
-                ('frequency', models.CharField(choices=[('hourly', 'Setiap Jam'), ('daily', 'Setiap Hari'), ('weekly', 'Setiap Minggu (Hari Minggu)')], default='daily', max_length=20)),
-                ('run_hour', models.PositiveSmallIntegerField(default=0, help_text='Jam pengiriman (0-23) untuk jadwal harian/mingguan')),
-                ('run_minute', models.PositiveSmallIntegerField(default=0, help_text='Menit pengiriman (0-59)')),
-                ('modality_filter', models.CharField(blank=True, default='', max_length=100, help_text='Filter modalitas cth: CT,MR — kosongkan untuk semua')),
+                ('frequency', models.CharField(choices=[('hourly', 'Setiap Jam'), ('daily', 'Setiap Hari (Tengah Malam)'), ('weekly', 'Setiap Minggu (Hari Minggu)')], default='daily', max_length=20)),
                 ('last_run', models.DateTimeField(blank=True, null=True)),
                 ('next_run', models.DateTimeField(blank=True, null=True)),
                 ('is_active', models.BooleanField(default=True)),
