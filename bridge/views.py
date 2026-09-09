@@ -3170,6 +3170,61 @@ def create_study_orthanc_api(request):
                 error_message=error_msg
             )
             return JsonResponse({'success': False, 'message': error_msg}, status=400)
+        if not study_id:
+            error_msg = 'Field study_id wajib diisi.'
+            WorklistLog.objects.create(
+                accession_number=accession_number,
+                patient_name=patient_name or 'UNKNOWN',
+                method=request.method,
+                status="Gagal",
+                raw_payload="Action: create_study_orthanc, Error: Field study_id wajib diisi",
+                error_message=error_msg
+            )
+            return JsonResponse({'success': False, 'message': error_msg}, status=400)
+        if not requesting_physician:
+            error_msg = 'Field requesting_physician wajib diisi.'
+            WorklistLog.objects.create(
+                accession_number=accession_number,
+                patient_name=patient_name or 'UNKNOWN',
+                method=request.method,
+                status="Gagal",
+                raw_payload="Action: create_study_orthanc, Error: Field requesting_physician wajib diisi",
+                error_message=error_msg
+            )
+            return JsonResponse({'success': False, 'message': error_msg}, status=400)
+        if not referring_physician:
+            error_msg = 'Field referring_physician wajib diisi.'
+            WorklistLog.objects.create(
+                accession_number=accession_number,
+                patient_name=patient_name or 'UNKNOWN',
+                method=request.method,
+                status="Gagal",
+                raw_payload="Action: create_study_orthanc, Error: Field referring_physician wajib diisi",
+                error_message=error_msg
+            )
+            return JsonResponse({'success': False, 'message': error_msg}, status=400)
+        if not institution_name:
+            error_msg = 'Field institution_name wajib diisi.'
+            WorklistLog.objects.create(
+                accession_number=accession_number,
+                patient_name=patient_name or 'UNKNOWN',
+                method=request.method,
+                status="Gagal",
+                raw_payload="Action: create_study_orthanc, Error: Field institution_name wajib diisi",
+                error_message=error_msg
+            )
+            return JsonResponse({'success': False, 'message': error_msg}, status=400)
+        if not other_patient_ids:
+            error_msg = 'Field other_patient_ids wajib diisi.'
+            WorklistLog.objects.create(
+                accession_number=accession_number,
+                patient_name=patient_name or 'UNKNOWN',
+                method=request.method,
+                status="Gagal",
+                raw_payload="Action: create_study_orthanc, Error: Field other_patient_ids wajib diisi",
+                error_message=error_msg
+            )
+            return JsonResponse({'success': False, 'message': error_msg}, status=400)
         if not data_uri:
             error_msg = 'Berkas citra wajib disertakan (image_b64 di JSON atau upload file di multipart).'
             WorklistLog.objects.create(

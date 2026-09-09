@@ -187,7 +187,12 @@ class CreateStudyTestCase(TestCase):
             "patient_name": "Testing Patient",
             "modality": "OT",
             "procedure_desc": "Foto Thorax Uji Coba",
-            "image_b64": "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
+            "image_b64": "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+            "study_id": "ST-999",
+            "requesting_physician": "dr. Rad",
+            "referring_physician": "dr. Refer",
+            "institution_name": "RS Test",
+            "other_patient_ids": "12345678"
         }
 
         # Mock pemanggilan HTTP ke Orthanc REST API
