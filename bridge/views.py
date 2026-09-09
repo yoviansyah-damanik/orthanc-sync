@@ -2803,7 +2803,9 @@ def doc_modality_upload_api(request):
                     "generate_uids": False,
                     "keys": [
                         f"AccessionNumber={accession_number[:16]}",
-                        "Modality=DOC"
+                        "Modality=DOC",
+                        "SeriesNumber=1",
+                        "InstanceNumber=1"
                     ]
                 }
                 
@@ -2843,6 +2845,8 @@ def doc_modality_upload_api(request):
             ds.Modality = 'DOC'
             ds.StudyDescription = procedure_desc
             ds.SeriesDescription = 'Encapsulated Document'
+            ds.SeriesNumber = 1
+            ds.InstanceNumber = 1
             
             now = datetime.now()
             ds.StudyDate = now.strftime('%Y%m%d')
@@ -3083,6 +3087,8 @@ def create_study_orthanc_api(request):
             referring_physician = data.get('referring_physician') or data.get('referring_physician_name') or data.get('ReferringPhysicianName')
             institution_name = data.get('institution_name') or data.get('InstitutionName')
             other_patient_ids = data.get('other_patient_ids') or data.get('patient_other_ids') or data.get('other_patient_id') or data.get('OtherPatientIDs')
+            series_number = str(data.get('series_number') or data.get('SeriesNumber') or '1').strip()
+            instance_number = str(data.get('instance_number') or data.get('InstanceNumber') or '1').strip()
 
             # Ekstrak data citra berformat base64
             img_raw = data.get('image_b64') or data.get('image') or data.get('file') or data.get('content') or data.get('image_base64')
@@ -3114,6 +3120,8 @@ def create_study_orthanc_api(request):
             referring_physician = request.POST.get('referring_physician') or request.POST.get('referring_physician_name') or request.POST.get('ReferringPhysicianName')
             institution_name = request.POST.get('institution_name') or request.POST.get('InstitutionName')
             other_patient_ids = request.POST.get('other_patient_ids') or request.POST.get('patient_other_ids') or request.POST.get('other_patient_id') or request.POST.get('OtherPatientIDs')
+            series_number = str(request.POST.get('series_number') or request.POST.get('SeriesNumber') or '1').strip()
+            instance_number = str(request.POST.get('instance_number') or request.POST.get('InstanceNumber') or '1').strip()
 
             uploaded_file = request.FILES.get('image') or request.FILES.get('file')
             if uploaded_file:
@@ -3284,6 +3292,8 @@ def create_study_orthanc_api(request):
             "Modality": modality or 'OT',
             "StudyDescription": procedure_desc,
             "SeriesDescription": series_desc,
+            "SeriesNumber": series_number,
+            "InstanceNumber": instance_number,
             "StudyDate": study_date_clean,
             "StudyTime": study_time_clean,
             "SeriesDate": study_date_clean,
@@ -3385,6 +3395,8 @@ def create_study_orthanc_api(request):
             'patient_id': patient_id,
             'patient_name': formatted_patient_name,
             'modality': modality or 'OT',
+            'series_number': series_number,
+            'instance_number': instance_number,
             'sop_class_uid': sop_class_uid,
             'orthanc_instance_id': instance_id,
             'orthanc_study_id': parent_study_id,

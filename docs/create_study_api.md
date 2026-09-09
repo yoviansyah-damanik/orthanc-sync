@@ -36,6 +36,8 @@ Semua request (sukses, validasi gagal, maupun error otentikasi) otomatis tercata
 | `referring_physician` | String | Ya | Dokter perujuk (Tag `(0008,0090)`) |
 | `institution_name` | String | Ya | Nama rumah sakit / institusi (Tag `(0008,0080)`) |
 | `other_patient_ids` | String | Ya | NIK / ID lain pasien (Tag `(0010,1000)`) |
+| `series_number` | String/Int | Tidak | Nomor urut seri (Tag `(0020,0011)`, default: `1`) |
+| `instance_number` | String/Int | Tidak | Nomor urut citra/instance (Tag `(0020,0013)`, default: `1`) |
 
 > [!IMPORTANT]
 > **Penting untuk Transfer DICOM (C-STORE ke Router / PACS seperti DCMROUTER):**
