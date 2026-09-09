@@ -140,6 +140,21 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
+                <!-- Pilihan Mode Viewer -->
+                <div class="flex items-center bg-slate-800/90 p-1 rounded-xl border border-slate-700/60 text-xs">
+                    <button id="viewerTabWeb" onclick="switchViewerType('web')" class="px-3 py-1.5 rounded-lg font-bold transition-all bg-blue-600 text-white shadow">
+                        Web Viewer
+                    </button>
+                    <button id="viewerTabExplorer" onclick="switchViewerType('explorer')" class="px-3 py-1.5 rounded-lg font-bold transition-all text-slate-400 hover:text-white">
+                        Orthanc Explorer
+                    </button>
+                    <button id="viewerTabStone" onclick="switchViewerType('stone')" class="px-3 py-1.5 rounded-lg font-bold transition-all text-slate-400 hover:text-white">
+                        Stone Viewer
+                    </button>
+                    <button id="viewerTabOhif" onclick="switchViewerType('ohif')" class="px-3 py-1.5 rounded-lg font-bold transition-all text-slate-400 hover:text-white">
+                        OHIF
+                    </button>
+                </div>
                 <!-- Tombol Buka di Tab Baru -->
                 <a id="viewerExternalBtn" href="#" target="_blank" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -608,7 +623,7 @@
                     <!-- Tombol Detail & Lihat -->
                     <td class="px-10 py-7 whitespace-nowrap text-right">
                         <div class="flex items-center justify-end gap-2">
-                            <button onclick="openViewerModal('${s.study_instance_uid || s.study_id}', '${s.patient_name.replace(/'/g, "\\'")}', '${s.accession_number || ''}')" class="px-3.5 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-emerald-100/50 hover:shadow-lg hover:shadow-emerald-500/25 group-hover:opacity-100 flex items-center gap-1.5">
+                            <button onclick="openViewerModal('${s.study_instance_uid || s.study_id}', '${s.patient_name.replace(/'/g, "\\'")}', '${s.accession_number || ''}', '${s.study_id}', '${s.first_series_id || ''}')" class="px-3.5 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-emerald-100/50 hover:shadow-lg hover:shadow-emerald-500/25 group-hover:opacity-100 flex items-center gap-1.5">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
@@ -824,34 +839,93 @@
         }
     }
 
-    // Fungsi untuk membuka DICOM Viewer dalam modal fullscreen
-    // studyInstanceUid: DICOM Study Instance UID (1.2.840...) digunakan sebagai parameter viewer
-    function openViewerModal(studyInstanceUid, patientName, accessionNumber) {
-        const backdrop = document.getElementById('viewerModalBackdrop');
+    let currentViewerStudyId = '';
+    let currentViewerStudyUid = '';
+    let currentViewerSeriesId = '';
+    let currentViewerType = 'web'; // Default ke Orthanc Web Viewer bawaan resmi Orthanc
+
+    // Fungsi untuk beralih antara Web Viewer, Orthanc Explorer, Stone Viewer, dan OHIF Viewer
+    async function switchViewerType(type) {
+        currentViewerType = type;
+        const cleanUrl = ORTHANC_URL.replace(/\/$/, '');
         const iframe = document.getElementById('viewerIframe');
         const spinner = document.getElementById('viewerSpinner');
+        const externalBtn = document.getElementById('viewerExternalBtn');
+        const tabWeb = document.getElementById('viewerTabWeb');
+        const tabExplorer = document.getElementById('viewerTabExplorer');
+        const tabStone = document.getElementById('viewerTabStone');
+        const tabOhif = document.getElementById('viewerTabOhif');
+
+        // Reset styling semua tab
+        const inactiveClass = "px-3 py-1.5 rounded-lg font-bold transition-all text-slate-400 hover:text-white";
+        const activeClass = "px-3 py-1.5 rounded-lg font-bold transition-all bg-blue-600 text-white shadow";
+
+        if (tabWeb) tabWeb.className = inactiveClass;
+        if (tabExplorer) tabExplorer.className = inactiveClass;
+        if (tabStone) tabStone.className = inactiveClass;
+        if (tabOhif) tabOhif.className = inactiveClass;
+
+        let targetUrl = '';
+        if (type === 'web') {
+            if (tabWeb) tabWeb.className = activeClass;
+            // Jika ID series pertama belum ada, ambil asinkron dari API Orthanc
+            if (!currentViewerSeriesId && currentViewerStudyId) {
+                try {
+                    const r = await fetch(`${cleanUrl}/studies/${currentViewerStudyId}`);
+                    if (r.ok) {
+                        const sData = await r.json();
+                        if (sData.Series && sData.Series.length > 0) {
+                            currentViewerSeriesId = sData.Series[0];
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            if (currentViewerSeriesId) {
+                targetUrl = `${cleanUrl}/web-viewer/app/viewer.html?series=${currentViewerSeriesId}`;
+            } else {
+                targetUrl = `${cleanUrl}/app/explorer.html#study?uuid=${currentViewerStudyId}`;
+            }
+        } else if (type === 'explorer') {
+            // Classic Orthanc Explorer resmi dan stabil (#study?uuid=...)
+            if (tabExplorer) tabExplorer.className = activeClass;
+            targetUrl = `${cleanUrl}/app/explorer.html#study?uuid=${currentViewerStudyId}`;
+        } else if (type === 'stone') {
+            if (tabStone) tabStone.className = activeClass;
+            targetUrl = `${cleanUrl}/stone-webviewer/index.html?study=${currentViewerStudyUid}`;
+        } else {
+            if (tabOhif) tabOhif.className = activeClass;
+            targetUrl = `${cleanUrl}/ohif/viewer?StudyInstanceUIDs=${currentViewerStudyUid}`;
+        }
+
+        spinner.style.opacity = '1';
+        spinner.classList.remove('hidden');
+        iframe.src = targetUrl;
+        externalBtn.href = targetUrl;
+    }
+
+    // Fungsi untuk membuka DICOM Viewer dalam modal fullscreen
+    function openViewerModal(studyInstanceUid, patientName, accessionNumber, studyId, firstSeriesId) {
+        currentViewerStudyUid = studyInstanceUid;
+        currentViewerStudyId = studyId || studyInstanceUid;
+        currentViewerSeriesId = firstSeriesId || '';
+
+        const backdrop = document.getElementById('viewerModalBackdrop');
         const title = document.getElementById('viewerModalTitle');
         const subtitle = document.getElementById('viewerModalSubtitle');
-        const externalBtn = document.getElementById('viewerExternalBtn');
+        const iframe = document.getElementById('viewerIframe');
+        const spinner = document.getElementById('viewerSpinner');
 
         title.innerText = patientName;
         subtitle.innerText = `Accession: ${accessionNumber || '-'} | UID: ${studyInstanceUid}`;
-
-        // Membangun URL untuk OHIF Viewer menggunakan Study Instance UID
-        const cleanUrl = ORTHANC_URL.replace(/\/$/, '');
-        const viewerUrl = `${cleanUrl}/ohif/viewer?StudyInstanceUIDs=${studyInstanceUid}`;
-
-        iframe.src = viewerUrl;
-        externalBtn.href = viewerUrl;
 
         backdrop.classList.remove('hidden');
         setTimeout(() => {
             backdrop.classList.remove('opacity-0');
         }, 10);
 
-        // Menampilkan loading spinner sampai iframe selesai dimuat
-        spinner.style.opacity = '1';
-        spinner.classList.remove('hidden');
+        // Buka Orthanc Web Viewer sebagai viewer utama
+        switchViewerType('web');
 
         iframe.onload = () => {
             spinner.style.opacity = '0';

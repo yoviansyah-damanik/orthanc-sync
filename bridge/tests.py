@@ -153,3 +153,90 @@ class DocModalityTestCase(TestCase):
         self.assertFalse(Worklist.objects.filter(accession_number='ACSN-DOC-TEST').exists())
         doc = DocDocument.objects.get(accession_number='ACSN-DOC-TEST')
         self.assertEqual(doc.patient_id, 'RM-DOC-001')
+
+
+class CreateStudyTestCase(TestCase):
+    def setUp(self):
+        # Inisialisasi API Key dan user untuk pengujian API create study
+        self.user = User.objects.create_user(username='studyuser', password='password123')
+        self.api_key = APIKey.objects.create(name='StudyClient', key='studykey123')
+        self.client = Client()
+
+    def test_create_study_validation_missing_fields(self):
+        # Pengujian validasi field wajib
+        payload = {
+            "accession_number": "ACC-TEST-001"
+            # patient_id, patient_name, dan citra sengaja dikosongkan
+        }
+        res = self.client.post(
+            reverse('api_study_create'),
+            data=json.dumps(payload),
+            content_type='application/json',
+            HTTP_X_API_KEY='studykey123'
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertFalse(res.json().get('success'))
+
+    def test_create_study_with_overwrite_mocked(self):
+        # Pengujian alur pembuatan study dan overwrite ke Orthanc dengan simulasi mock
+        from unittest.mock import patch, MagicMock
+
+        payload = {
+            "accession_number": "ACC-TEST-999",
+            "patient_id": "P-999",
+            "patient_name": "Testing Patient",
+            "modality": "OT",
+            "procedure_desc": "Foto Thorax Uji Coba",
+            "image_b64": "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
+        }
+
+        # Mock pemanggilan HTTP ke Orthanc REST API
+        with patch('bridge.views.requests.post') as mock_post, \
+             patch('bridge.views.requests.delete') as mock_delete, \
+             patch('bridge.views.requests.get') as mock_get:
+
+            # 1. Mock response /tools/find (study sudah ada, kembalikan daftar ID study lama)
+            mock_find_resp = MagicMock()
+            mock_find_resp.status_code = 200
+            mock_find_resp.json.return_value = ['old-study-uuid-111']
+
+            # 2. Mock response /tools/create-dicom
+            mock_create_resp = MagicMock()
+            mock_create_resp.status_code = 200
+            mock_create_resp.json.return_value = {'ID': 'new-instance-uuid-222', 'Path': '/instances/new-instance-uuid-222'}
+
+            mock_post.side_effect = [mock_find_resp, mock_create_resp]
+
+            # 3. Mock response DELETE /studies/{old_study_id}
+            mock_del_resp = MagicMock()
+            mock_del_resp.status_code = 200
+            mock_delete.return_value = mock_del_resp
+
+            # 4. Mock response GET /instances/{instance_id}
+            mock_inst_resp = MagicMock()
+            mock_inst_resp.status_code = 200
+            mock_inst_resp.json.return_value = {
+                'ParentStudy': 'new-study-uuid-333',
+                'MainDicomTags': {'StudyInstanceUID': '1.2.840.113619.test.999'}
+            }
+            mock_get.return_value = mock_inst_resp
+
+            res = self.client.post(
+                reverse('api_study_create'),
+                data=json.dumps(payload),
+                content_type='application/json',
+                HTTP_X_API_KEY='studykey123'
+            )
+
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            self.assertTrue(data.get('success'))
+            self.assertTrue(data.get('overwritten'))
+            self.assertEqual(data.get('orthanc_study_id'), 'new-study-uuid-333')
+            self.assertEqual(data.get('orthanc_instance_id'), 'new-instance-uuid-222')
+            self.assertEqual(data.get('study_instance_uid'), '1.2.840.113619.test.999')
+
+            # Pastikan DELETE /studies/old-study-uuid-111 terpanggil untuk menghapus study lama
+            mock_delete.assert_called_once()
+            self.assertIn('old-study-uuid-111', mock_delete.call_args[0][0])
+

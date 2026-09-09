@@ -112,39 +112,166 @@ def logout_view(request):
 def dashboard_view(request):
     logs = WorklistLog.objects.all()
     worklists = Worklist.objects.all()
-    
+    transfers = TransferLog.objects.all()
+    routings = RoutingLog.objects.all()
+
+    today = timezone.now().date()
+    last_7_days = today - timedelta(days=6)
+
+    # 1. Siapkan daftar 7 hari terakhir
+    date_list = [last_7_days + timedelta(days=i) for i in range(7)]
+    chart_labels = [d.strftime('%d %b') for d in date_list]
+
+    # 2. Hitung tren harian pembuatan Worklist
+    wl_daily_map = {d: 0 for d in date_list}
+    for wl in worklists.filter(created_at__date__gte=last_7_days):
+        local_d = wl.created_at.astimezone(timezone.get_current_timezone()).date()
+        if local_d in wl_daily_map:
+            wl_daily_map[local_d] += 1
+
+    for l in logs.filter(created_at__date__gte=last_7_days, status__in=['Berhasil', 'Updated']):
+        if not (l.raw_payload and 'create_study_orthanc' in l.raw_payload):
+            local_d = l.created_at.astimezone(timezone.get_current_timezone()).date()
+            if local_d in wl_daily_map and wl_daily_map[local_d] == 0:
+                wl_daily_map[local_d] = 1
+
+    # 3. Hitung tren harian pengiriman / penerimaan Study DICOM
+    study_daily_map = {d: 0 for d in date_list}
+    for tl in transfers.filter(created_at__date__gte=last_7_days, status__in=['Success', 'Berhasil']):
+        local_d = tl.created_at.astimezone(timezone.get_current_timezone()).date()
+        if local_d in study_daily_map:
+            study_daily_map[local_d] += 1
+
+    for rl in routings.filter(created_at__date__gte=last_7_days, status='Success'):
+        local_d = rl.created_at.astimezone(timezone.get_current_timezone()).date()
+        if local_d in study_daily_map:
+            study_daily_map[local_d] += 1
+
+    for l in logs.filter(created_at__date__gte=last_7_days, status='Berhasil', raw_payload__icontains='create_study_orthanc'):
+        local_d = l.created_at.astimezone(timezone.get_current_timezone()).date()
+        if local_d in study_daily_map:
+            study_daily_map[local_d] += 1
+
+    # Ambil data study lokal dari Orthanc PACS (jika aktif)
+    orthanc_studies_count = 0
+    orthanc_studies = []
+    url = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042').rstrip('/')
+    user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+    pw = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+    try:
+        r = requests.post(f"{url}/tools/find", auth=(user, pw), json={"Level": "Study", "Expand": True, "Query": {}}, timeout=1.5)
+        if r.status_code == 200:
+            orthanc_studies = r.json()
+            orthanc_studies_count = len(orthanc_studies)
+            for s in orthanc_studies:
+                tags = s.get('MainDicomTags', {})
+                s_date_str = tags.get('SeriesDate') or tags.get('StudyDate', '')
+                if len(s_date_str) == 8:
+                    try:
+                        s_date = datetime.strptime(s_date_str, '%Y%m%d').date()
+                        if s_date in study_daily_map:
+                            study_daily_map[s_date] += 1
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    chart_wl_data = [wl_daily_map[d] for d in date_list]
+    chart_study_data = [study_daily_map[d] for d in date_list]
+
+    # 4. Agregasi Tren & Distribusi Modality
+    modality_counts = {}
+    for w in worklists.exclude(modality=''):
+        m = w.modality.upper().strip()
+        if m:
+            modality_counts[m] = modality_counts.get(m, 0) + 1
+
+    for t in transfers.exclude(modality=''):
+        m = t.modality.upper().strip()
+        if m:
+            modality_counts[m] = modality_counts.get(m, 0) + 1
+
+    for r_log in routings.exclude(modality=''):
+        m = r_log.modality.upper().strip()
+        if m:
+            modality_counts[m] = modality_counts.get(m, 0) + 1
+
+    for s in orthanc_studies:
+        tags = s.get('MainDicomTags', {})
+        mods = tags.get('ModalitiesInStudy', '') or tags.get('Modality', '')
+        mod_list = []
+        if isinstance(mods, list):
+            mod_list = mods
+        elif mods:
+            mod_list = [x.strip() for x in mods.replace('\\', ',').split(',') if x.strip()]
+        if not mod_list and s.get('Series'):
+            try:
+                ser_r = requests.get(f"{url}/series/{s['Series'][0]}", auth=(user, pw), timeout=1)
+                if ser_r.status_code == 200:
+                    ser_mod = ser_r.json().get('MainDicomTags', {}).get('Modality', '')
+                    if ser_mod:
+                        mod_list = [ser_mod]
+            except Exception:
+                pass
+        for m in mod_list:
+            m_clean = m.upper().strip()
+            if m_clean:
+                modality_counts[m_clean] = modality_counts.get(m_clean, 0) + 1
+
+    # Format data modalitas untuk template & chart
+    COLOR_PALETTE = [
+        '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#06b6d4',
+        '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#64748b'
+    ]
+    sorted_modalities = sorted(modality_counts.items(), key=lambda x: x[1], reverse=True)
+    total_modality_items = sum(modality_counts.values()) or 1
+
+    modality_labels = []
+    modality_data = []
+    modality_colors = []
+    modality_list = []
+
+    for idx, (mod, cnt) in enumerate(sorted_modalities):
+        color = COLOR_PALETTE[idx % len(COLOR_PALETTE)]
+        pct = round((cnt / total_modality_items) * 100, 1)
+        modality_labels.append(mod)
+        modality_data.append(cnt)
+        modality_colors.append(color)
+        modality_list.append({
+            'name': mod,
+            'count': cnt,
+            'percent': pct,
+            'color': color
+        })
+
+    # Total pengiriman & penerimaan study
+    total_studies = transfers.filter(status__in=['Success', 'Berhasil']).count() + routings.filter(status='Success').count() + logs.filter(raw_payload__icontains='create_study_orthanc', status='Berhasil').count() + orthanc_studies_count
+    today_wl_count = worklists.filter(created_at__date=today).count()
+    today_study_count = study_daily_map.get(today, 0)
+
     # Statistik Dasar
     stats = {
         'total_logs': logs.count(),
         'total_worklist': worklists.count(),
+        'total_studies': total_studies,
+        'today_worklist': today_wl_count,
+        'today_studies': today_study_count,
         'success_logs': logs.filter(status='Berhasil').count(),
         'failed_logs': logs.filter(status='Gagal').count(),
     }
-
-    # Data Grafik Aktivitas (7 hari terakhir)
-    last_7_days = timezone.now().date() - timedelta(days=6)
-    daily_activity = logs.filter(created_at__date__gte=last_7_days) \
-        .annotate(date=TruncDate('created_at')) \
-        .values('date') \
-        .annotate(count=Count('id')) \
-        .order_by('date')
-
-    # Siapkan data untuk Chart.js
-    chart_labels = []
-    chart_data = []
-    
-    # Isi data untuk setiap hari dalam 7 hari terakhir (termasuk yang kosong)
-    date_map = {item['date']: item['count'] for item in daily_activity}
-    for i in range(7):
-        current_date = last_7_days + timedelta(days=i)
-        chart_labels.append(current_date.strftime('%d %b'))
-        chart_data.append(date_map.get(current_date, 0))
 
     context = {
         'logs': logs,
         'stats': stats,
         'chart_labels': json.dumps(chart_labels),
-        'chart_data': json.dumps(chart_data),
+        'chart_wl_data': json.dumps(chart_wl_data),
+        'chart_study_data': json.dumps(chart_study_data),
+        'total_wl_7d': sum(chart_wl_data),
+        'total_study_7d': sum(chart_study_data),
+        'modality_labels': json.dumps(modality_labels),
+        'modality_data': json.dumps(modality_data),
+        'modality_colors': json.dumps(modality_colors),
+        'modality_list': modality_list,
     }
     return render(request, 'summary.html', context)
 
@@ -1188,28 +1315,42 @@ def orthanc_viewer_url_api(request):
     mengembalikan URL viewer yang tepat untuk suatu study.
     """
     study_id = request.GET.get('study_id', '')
+    study_uid = request.GET.get('study_uid', '')
     url  = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042')
     user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
     pw   = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
 
-    if not study_id:
-        return JsonResponse({'success': False, 'message': 'study_id diperlukan'}, status=400)
+    if not study_id and not study_uid:
+        return JsonResponse({'success': False, 'message': 'study_id atau study_uid diperlukan'}, status=400)
 
     try:
+        clean_url = url.rstrip('/')
+
+        # Dapatkan study_instance_uid jika belum ada dan study_id berupa UUID
+        if not study_uid and study_id:
+            try:
+                s_resp = requests.get(f"{clean_url}/studies/{study_id}", auth=(user, pw), timeout=5)
+                if s_resp.status_code == 200:
+                    study_uid = s_resp.json().get('MainDicomTags', {}).get('StudyInstanceUID', '')
+            except Exception:
+                pass
+
         # Ambil daftar plugin yang terinstall di Orthanc
         plugins_resp = requests.get(
-            f"{url.rstrip('/')}/plugins",
+            f"{clean_url}/plugins",
             auth=(user, pw),
             timeout=5
         )
         installed_plugins = plugins_resp.json() if plugins_resp.status_code == 200 else []
 
-        clean_url = url.rstrip('/')
+        target_uid = study_uid or study_id
 
-        # Urutan prioritas deteksi plugin viewer berdasarkan yang paling umum
-        # Stone Web Viewer (resmi & modern)
-        if 'stone-webviewer' in installed_plugins:
-            viewer_url = f"{clean_url}/stone-webviewer/index.html?study={study_id}"
+        # Stone Web Viewer (resmi & modern - membutuhkan StudyInstanceUID)
+        if 'stone-webviewer' in installed_plugins and target_uid:
+            viewer_url = f"{clean_url}/stone-webviewer/index.html?study={target_uid}"
+        # Orthanc Explorer 2
+        elif 'orthanc-explorer-2' in installed_plugins and study_id:
+            viewer_url = f"{clean_url}/ui/app/#/study?uuid={study_id}"
         # Osimis Web Viewer
         elif 'osimis-web-viewer' in installed_plugins:
             viewer_url = f"{clean_url}/osimis-viewer/app/index.html?study={study_id}"
@@ -1328,6 +1469,8 @@ def orthanc_studies_api(request):
                 "referring_physician": (tags.get('RequestingPhysician', '') or tags.get('ReferringPhysicianName', '') or '-').replace('^', ' ').strip() or '-',
                 "series_count"     : series_count,
                 "study_instance_uid": tags.get('StudyInstanceUID', '-'),
+                "first_series_id"  : series_ids[0] if series_ids else '',
+                "series_ids"       : series_ids,
             })
 
         # Urutkan berdasarkan tanggal terbaru (raw date utk sorting)
@@ -2850,3 +2993,212 @@ def doc_delete_api(request, accession_number):
     )
 
     return JsonResponse({"success": True, "message": "Dokumen DOC berhasil dihapus."})
+
+
+@csrf_exempt
+@api_key_or_login_required
+@require_http_methods(["POST"])
+def create_study_orthanc_api(request):
+    """API untuk menerima study beserta citra dan mengirim langsung ke Orthanc /tools/create-dicom dengan overwrite jika sudah ada."""
+    try:
+        data = {}
+        mime_type = "image/jpeg"
+        data_uri = None
+
+        # Penanganan tipe konten (JSON vs Multipart Form-Data)
+        if request.content_type == 'application/json' or (request.body and not request.FILES):
+            try:
+                data = json.loads(request.body.decode('utf-8', errors='ignore'))
+            except Exception:
+                data = {}
+            accession_number = str(data.get('accession_number', '')).strip()
+            patient_id = str(data.get('patient_id', '')).strip()
+            patient_name = str(data.get('patient_name', '')).strip()
+            birth_date = str(data.get('birth_date', '')).strip()
+            gender = str(data.get('gender', 'O')).strip()
+            modality = str(data.get('modality', 'OT')).strip()
+            procedure_desc = data.get('procedure_desc') or data.get('study_description', '')
+            series_desc = data.get('series_description', 'Imported Image Series')
+            study_date = data.get('study_date')
+            study_time = data.get('study_time')
+            study_instance_uid = data.get('study_instance_uid')
+
+            # Ekstrak data citra berformat base64
+            img_raw = data.get('image_b64') or data.get('image') or data.get('file') or data.get('content')
+            if img_raw and isinstance(img_raw, str):
+                img_raw = img_raw.strip()
+                if img_raw.startswith('data:'):
+                    data_uri = img_raw
+                else:
+                    if img_raw.startswith('/9j/'):
+                        mime_type = "image/jpeg"
+                    elif img_raw.startswith('iVBORw'):
+                        mime_type = "image/png"
+                    data_uri = f"data:{mime_type};base64,{img_raw}"
+        else:
+            accession_number = str(request.POST.get('accession_number', '')).strip()
+            patient_id = str(request.POST.get('patient_id', '')).strip()
+            patient_name = str(request.POST.get('patient_name', '')).strip()
+            birth_date = str(request.POST.get('birth_date', '')).strip()
+            gender = str(request.POST.get('gender', 'O')).strip()
+            modality = str(request.POST.get('modality', 'OT')).strip()
+            procedure_desc = request.POST.get('procedure_desc') or request.POST.get('study_description', '')
+            series_desc = request.POST.get('series_description', 'Imported Image Series')
+            study_date = request.POST.get('study_date')
+            study_time = request.POST.get('study_time')
+            study_instance_uid = request.POST.get('study_instance_uid')
+
+            uploaded_file = request.FILES.get('image') or request.FILES.get('file')
+            if uploaded_file:
+                file_bytes = uploaded_file.read()
+                file_name = uploaded_file.name.lower()
+                if file_name.endswith('.png'):
+                    mime_type = "image/png"
+                elif file_name.endswith('.pdf'):
+                    mime_type = "application/pdf"
+                else:
+                    mime_type = "image/jpeg"
+                b64_str = base64.b64encode(file_bytes).decode('ascii')
+                data_uri = f"data:{mime_type};base64,{b64_str}"
+            else:
+                img_raw = request.POST.get('image_b64') or request.POST.get('image')
+                if img_raw and isinstance(img_raw, str):
+                    img_raw = img_raw.strip()
+                    if img_raw.startswith('data:'):
+                        data_uri = img_raw
+                    else:
+                        data_uri = f"data:image/jpeg;base64,{img_raw}"
+
+        # Validasi parameter wajib
+        if not accession_number:
+            return JsonResponse({'success': False, 'message': 'Field accession_number wajib diisi.'}, status=400)
+        if not patient_id:
+            return JsonResponse({'success': False, 'message': 'Field patient_id wajib diisi.'}, status=400)
+        if not patient_name:
+            return JsonResponse({'success': False, 'message': 'Field patient_name wajib diisi.'}, status=400)
+        if not data_uri:
+            return JsonResponse({'success': False, 'message': 'Berkas citra wajib disertakan (image_b64 di JSON atau upload file di multipart).'}, status=400)
+
+        # Kredensial Orthanc
+        orthanc_url = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042').rstrip('/')
+        orthanc_user = SystemConfig.get_val('ORTHANC_USER', 'orthanc')
+        orthanc_pass = SystemConfig.get_val('ORTHANC_PASS', 'orthanc')
+        auth = (orthanc_user, orthanc_pass)
+
+        # Cek apakah study sudah ada di Orthanc PACS (Pencegahan Duplikasi / Overwrite)
+        overwritten = False
+        find_query = {
+            "Level": "Study",
+            "Query": {
+                "AccessionNumber": accession_number
+            }
+        }
+
+        try:
+            find_res = requests.post(f"{orthanc_url}/tools/find", json=find_query, auth=auth, timeout=10)
+            if find_res.status_code == 200:
+                existing_study_ids = find_res.json()
+                if existing_study_ids:
+                    # Lakukan overwrite: Hapus seluruh study lama yang memiliki AccessionNumber sama
+                    for old_study_id in existing_study_ids:
+                        try:
+                            del_res = requests.delete(f"{orthanc_url}/studies/{old_study_id}", auth=auth, timeout=10)
+                            if del_res.status_code == 200:
+                                overwritten = True
+                        except Exception as del_err:
+                            print(f"Peringatan: Gagal menghapus study lama {old_study_id}: {del_err}")
+        except Exception as find_err:
+            print(f"Peringatan saat memeriksa study di Orthanc: {find_err}")
+
+        # Format DICOM Tags sesuai standar PACS
+        formatted_patient_name = patient_name.upper().strip().replace(' ', '^')
+        now = datetime.now()
+        study_date_clean = (study_date or now.strftime('%Y%m%d')).replace('-', '').replace('/', '')
+        study_time_clean = (study_time or now.strftime('%H%M%S')).replace(':', '')
+        birth_date_clean = birth_date.replace('-', '').replace('/', '') if birth_date else ''
+
+        dicom_tags = {
+            "PatientID": patient_id,
+            "PatientName": formatted_patient_name,
+            "PatientBirthDate": birth_date_clean,
+            "PatientSex": gender.upper() if gender else 'O',
+            "AccessionNumber": accession_number[:16],
+            "Modality": modality or 'OT',
+            "StudyDescription": procedure_desc,
+            "SeriesDescription": series_desc,
+            "StudyDate": study_date_clean,
+            "StudyTime": study_time_clean,
+            "SeriesDate": study_date_clean,
+            "SeriesTime": study_time_clean,
+        }
+        if study_instance_uid:
+            dicom_tags["StudyInstanceUID"] = study_instance_uid
+
+        orthanc_payload = {
+            "Tags": dicom_tags,
+            "Content": data_uri
+        }
+
+        # Panggil endpoint Orthanc /tools/create-dicom
+        create_res = requests.post(f"{orthanc_url}/tools/create-dicom", json=orthanc_payload, auth=auth, timeout=25)
+        if create_res.status_code not in [200, 201]:
+            err_text = create_res.text
+            WorklistLog.objects.create(
+                accession_number=accession_number,
+                patient_name=formatted_patient_name,
+                method=request.method,
+                status="Gagal",
+                raw_payload=f"Action: create_study_orthanc, Error: {err_text[:200]}",
+                error_message=f"Orthanc Create DICOM Error: {err_text}"
+            )
+            return JsonResponse({
+                'success': False,
+                'message': f"Gagal membuat DICOM di Orthanc: {err_text}"
+            }, status=502)
+
+        created_data = create_res.json()
+        instance_id = created_data.get('ID')
+
+        # Dapatkan ID Study dan StudyInstanceUID dari instance baru
+        parent_study_id = None
+        actual_study_uid = study_instance_uid
+        if instance_id:
+            try:
+                inst_res = requests.get(f"{orthanc_url}/instances/{instance_id}", auth=auth, timeout=10)
+                if inst_res.status_code == 200:
+                    inst_info = inst_res.json()
+                    parent_study_id = inst_info.get('ParentStudy')
+                    actual_study_uid = inst_info.get('MainDicomTags', {}).get('StudyInstanceUID', actual_study_uid)
+            except Exception as inst_err:
+                print(f"Peringatan saat mengambil detail instance {instance_id}: {inst_err}")
+
+        # Catat aktivitas ke WorklistLog
+        WorklistLog.objects.create(
+            accession_number=accession_number,
+            patient_name=formatted_patient_name,
+            method=request.method,
+            status="Berhasil",
+            raw_payload=f"Action: create_study_orthanc, Overwritten: {overwritten}, InstanceID: {instance_id}, StudyID: {parent_study_id}",
+            error_message=None
+        )
+
+        message = (
+            f"Study DICOM untuk Accession Number '{accession_number}' berhasil dibuat di Orthanc PACS (study lama ditimpa)."
+            if overwritten else
+            f"Study DICOM untuk Accession Number '{accession_number}' berhasil dibuat di Orthanc PACS."
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': message,
+            'overwritten': overwritten,
+            'accession_number': accession_number,
+            'patient_id': patient_id,
+            'patient_name': formatted_patient_name,
+            'orthanc_instance_id': instance_id,
+            'orthanc_study_id': parent_study_id,
+            'study_instance_uid': actual_study_uid
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f"Terjadi kesalahan internal: {str(e)}"}, status=500)

@@ -21,13 +21,19 @@ Membuat atau memperbarui file worklist di server.
 - `ae_title` (string)
 - `bypass` (boolean) - Jika true, timpa file jika sudah ada.
 
-### 2. Get Worklist Detail
+### 2. Create DICOM Study (Direct to Orthanc with Auto-Overwrite)
+**POST** `/api/study/create`
+
+Menerima data study beserta citra medis (Base64 atau multipart image), menghapus study lama di Orthanc jika sudah ada (mencegah duplikasi), lalu membuat instance DICOM baru via Orthanc `/tools/create-dicom`.
+*Detail lengkap: lihat [create_study_api.md](create_study_api.md)*.
+
+### 3. Get Worklist Detail
 **GET** `/api/worklist/{accession_number}`
 
-### 3. Delete Worklist
+### 4. Delete Worklist
 **DELETE** `/api/worklist/{accession_number}`
 
-### 4. Check Orthanc Study
+### 5. Check Orthanc Study
 **GET** `/api/check-study/{accession_number}`
 
 Mengecek apakah study dengan Accession Number tertentu sudah masuk ke Orthanc dan menghitung jumlah instance yang tersedia.

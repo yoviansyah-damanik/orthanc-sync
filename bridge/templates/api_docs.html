@@ -272,6 +272,10 @@
             class="flex-shrink-0 px-4 py-2 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-full text-xs font-black shadow-sm border border-slate-100 hover:border-blue-200 transition-all duration-300">
             POST /api/worklist
         </a>
+        <a href="#endpoint-create-study"
+            class="flex-shrink-0 px-4 py-2 bg-white hover:bg-purple-50 text-slate-700 hover:text-purple-600 rounded-full text-xs font-black shadow-sm border border-slate-100 hover:border-purple-200 transition-all duration-300">
+            POST /api/study/create
+        </a>
         <a href="#endpoint-details"
             class="flex-shrink-0 px-4 py-2 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-full text-xs font-black shadow-sm border border-slate-100 hover:border-blue-200 transition-all duration-300">
             GET /api/worklist/{id}
@@ -569,6 +573,281 @@ print(<span class="hl-var">response</span>.json())</code></pre>
                             <pre class="text-rose-400/90"><code>{
   <span class="hl-key">"success"</span>: <span class="hl-number">false</span>,
   <span class="hl-key">"error"</span>: <span class="hl-string">"accession_number has already been registered in another Worklist."</span>
+}</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 1B: CREATE DICOM STUDY DIRECT TO ORTHANC (WITH AUTO-OVERWRITE) -->
+        <div id="endpoint-create-study" class="grid grid-cols-1 lg:grid-cols-12 gap-8 scroll-mt-36">
+            <!-- Documentation Left Pane -->
+            <div
+                class="lg:col-span-7 bg-white p-8 lg:p-10 rounded-[2.5rem] card-shadow border border-slate-100 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center gap-3 mb-6">
+                        <span
+                            class="px-3.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] font-black rounded-xl shadow-lg shadow-purple-500/20 uppercase tracking-widest">POST</span>
+                        <h3 class="text-xl font-black text-slate-900">Create Study DICOM & Upload Citra</h3>
+                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-lg border border-emerald-100">Auto-Overwrite</span>
+                    </div>
+                    <p class="text-slate-600 text-sm leading-relaxed mb-6">
+                        Menerima data pemeriksaan (Study) beserta file citra medis (format JPEG, PNG, atau base64) lalu membuat instance DICOM secara langsung di Orthanc PACS via endpoint <code class="font-bold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded">/tools/create-dicom</code>.
+                    </p>
+                    <div
+                        class="p-4 bg-indigo-50/50 border border-indigo-100 text-xs text-indigo-900 rounded-2xl mb-8 leading-relaxed">
+                        <span class="font-bold block mb-1">Mekanisme Anti-Duplikasi (Auto-Overwrite):</span>
+                        Sebelum membuat DICOM di Orthanc, sistem secara otomatis mengecek apakah sudah ada Study dengan <code class="font-bold">accession_number</code> tersebut. Jika ditemukan, sistem akan menghapus study lama terlebih dahulu dari PACS sebelum mengunggah data baru, menjamin tidak terjadi duplikasi pemeriksaan di PACS.
+                    </div>
+
+                    <!-- Parameter Table -->
+                    <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">JSON Body / Form-Data Parameters</h4>
+                    <div class="overflow-x-auto -mx-8 lg:-mx-10 px-8 lg:px-10">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-slate-100">
+                                    <th class="py-3 font-black text-slate-400 uppercase tracking-wider w-1/3">Field</th>
+                                    <th class="py-3 font-black text-slate-400 uppercase tracking-wider w-1/4">Type</th>
+                                    <th class="py-3 font-black text-slate-400 uppercase tracking-wider">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50 font-medium">
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3.5"><span class="font-mono font-bold text-slate-900">accession_number</span><span class="ml-1 text-red-500 font-bold">*</span></td>
+                                    <td class="py-3.5"><span class="px-2 py-0.5 bg-rose-50 text-rose-700 rounded text-[10px] font-bold">string(16)</span></td>
+                                    <td class="py-3.5 text-slate-500">Nomor unik Accession Number pemeriksaan. Kunci pengecekan overwrite di Orthanc.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3.5"><span class="font-mono font-bold text-slate-900">patient_id</span><span class="ml-1 text-red-500 font-bold">*</span></td>
+                                    <td class="py-3.5"><span class="px-2 py-0.5 bg-rose-50 text-rose-700 rounded text-[10px] font-bold">string</span></td>
+                                    <td class="py-3.5 text-slate-500">Nomor Rekam Medis (No RM) / Patient ID.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3.5"><span class="font-mono font-bold text-slate-900">patient_name</span><span class="ml-1 text-red-500 font-bold">*</span></td>
+                                    <td class="py-3.5"><span class="px-2 py-0.5 bg-rose-50 text-rose-700 rounded text-[10px] font-bold">string</span></td>
+                                    <td class="py-3.5 text-slate-500">Nama lengkap pasien (otomatis diformat ke standar DICOM).</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3.5"><span class="font-mono font-bold text-slate-900">image_b64 / file</span><span class="ml-1 text-red-500 font-bold">*</span></td>
+                                    <td class="py-3.5"><span class="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px] font-bold">string / file</span></td>
+                                    <td class="py-3.5 text-slate-500">Berkas citra medis. Mendukung Base64 Data URI (JSON) atau upload file Multipart (JPEG/PNG).</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3.5"><span class="font-mono font-bold text-slate-900">modality</span></td>
+                                    <td class="py-3.5"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold">string</span></td>
+                                    <td class="py-3.5 text-slate-500">Kode Modality DICOM (misal: OT, SC, CR, DX, US). Default: <code class="font-mono">OT</code>.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3.5"><span class="font-mono font-bold text-slate-900">procedure_desc</span></td>
+                                    <td class="py-3.5"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold">string</span></td>
+                                    <td class="py-3.5 text-slate-500">Deskripsi prosedur / nama pemeriksaan (Study Description).</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3.5"><span class="font-mono font-bold text-slate-900">birth_date</span></td>
+                                    <td class="py-3.5"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold">string(date)</span></td>
+                                    <td class="py-3.5 text-slate-500">Tanggal lahir pasien (Format: YYYY-MM-DD atau YYYYMMDD).</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3.5"><span class="font-mono font-bold text-slate-900">gender</span></td>
+                                    <td class="py-3.5"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold">string</span></td>
+                                    <td class="py-3.5 text-slate-500">Jenis kelamin (M = Pria, F = Wanita, O = Lainnya). Default: <code class="font-mono">O</code>.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3.5"><span class="font-mono font-bold text-slate-900">study_date</span></td>
+                                    <td class="py-3.5"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold">string</span></td>
+                                    <td class="py-3.5 text-slate-500">Tanggal pemeriksaan (Format: YYYYMMDD). Opsional, default: tanggal hari ini.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3.5"><span class="font-mono font-bold text-slate-900">study_instance_uid</span></td>
+                                    <td class="py-3.5"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold">string</span></td>
+                                    <td class="py-3.5 text-slate-500">UID Study DICOM kustom jika ingin ditentukan secara eksplisit.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Code Console Right Pane -->
+            <div
+                class="lg:col-span-5 flex flex-col rounded-[2.5rem] bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden min-h-[520px]">
+                <!-- Header Tabs Bahasa Pemrograman -->
+                <div
+                    class="flex items-center justify-between px-6 py-4 bg-slate-950 border-b border-slate-800/80">
+                    <div class="flex items-center gap-1.5 overflow-x-auto">
+                        <button onclick="switchTab('create-study', 'curl')" id="btn-create-study-curl"
+                            class="tab-btn-create-study px-3 py-1.5 text-xs font-black tracking-wider rounded-lg transition-all bg-slate-800 text-white">cURL</button>
+                        <button onclick="switchTab('create-study', 'python')" id="btn-create-study-python"
+                            class="tab-btn-create-study px-3 py-1.5 text-xs font-black tracking-wider rounded-lg transition-all text-slate-400 hover:text-slate-200">Python</button>
+                        <button onclick="switchTab('create-study', 'js')" id="btn-create-study-js"
+                            class="tab-btn-create-study px-3 py-1.5 text-xs font-black tracking-wider rounded-lg transition-all text-slate-400 hover:text-slate-200">JavaScript</button>
+                        <button onclick="switchTab('create-study', 'php')" id="btn-create-study-php"
+                            class="tab-btn-create-study px-3 py-1.5 text-xs font-black tracking-wider rounded-lg transition-all text-slate-400 hover:text-slate-200">PHP</button>
+                    </div>
+                </div>
+
+                <!-- Code Container -->
+                <div class="relative p-6 flex-1 font-mono text-xs leading-relaxed overflow-x-auto console-scroll bg-slate-900/40">
+                    <!-- Tab cURL -->
+                    <div id="code-create-study-curl" class="tab-content-create-study block">
+                        <pre><code>curl -X POST "http://{{ request.get_host }}/api/study/create" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    <span class="hl-key">"accession_number"</span>: <span class="hl-string">"ACC20260909001"</span>,
+    <span class="hl-key">"patient_id"</span>: <span class="hl-string">"042790"</span>,
+    <span class="hl-key">"patient_name"</span>: <span class="hl-string">"JOHN DOE"</span>,
+    <span class="hl-key">"birth_date"</span>: <span class="hl-string">"1990-01-01"</span>,
+    <span class="hl-key">"gender"</span>: <span class="hl-string">"M"</span>,
+    <span class="hl-key">"modality"</span>: <span class="hl-string">"OT"</span>,
+    <span class="hl-key">"procedure_desc"</span>: <span class="hl-string">"FOTO THORAX"</span>,
+    <span class="hl-key">"image_b64"</span>: <span class="hl-string">"data:image/jpeg;base64,/9j/4AAQSkZJRg..."</span>
+  }'</code></pre>
+                    </div>
+
+                    <!-- Tab Python -->
+                    <div id="code-create-study-python" class="tab-content-create-study hidden">
+                        <pre><code><span class="hl-keyword">import</span> requests
+
+<span class="hl-var">url</span> = <span class="hl-string">"http://{{ request.get_host }}/api/study/create"</span>
+<span class="hl-var">headers</span> = {
+    <span class="hl-string">"X-API-Key"</span>: <span class="hl-string">"YOUR_API_KEY"</span>,
+    <span class="hl-string">"Content-Type"</span>: <span class="hl-string">"application/json"</span>
+}
+<span class="hl-var">payload</span> = {
+    <span class="hl-string">"accession_number"</span>: <span class="hl-string">"ACC20260909001"</span>,
+    <span class="hl-string">"patient_id"</span>: <span class="hl-string">"042790"</span>,
+    <span class="hl-string">"patient_name"</span>: <span class="hl-string">"JOHN DOE"</span>,
+    <span class="hl-string">"birth_date"</span>: <span class="hl-string">"1990-01-01"</span>,
+    <span class="hl-string">"gender"</span>: <span class="hl-string">"M"</span>,
+    <span class="hl-string">"modality"</span>: <span class="hl-string">"OT"</span>,
+    <span class="hl-string">"procedure_desc"</span>: <span class="hl-string">"FOTO THORAX"</span>,
+    <span class="hl-string">"image_b64"</span>: <span class="hl-string">"data:image/jpeg;base64,/9j/4AAQSkZJRg..."</span>
+}
+
+<span class="hl-var">response</span> = requests.post(<span class="hl-var">url</span>, json=<span class="hl-var">payload</span>, headers=<span class="hl-var">headers</span>)
+print(<span class="hl-var">response</span>.json())</code></pre>
+                    </div>
+
+                    <!-- Tab JavaScript -->
+                    <div id="code-create-study-js" class="tab-content-create-study hidden">
+                        <pre><code>fetch(<span class="hl-string">'http://{{ request.get_host }}/api/study/create'</span>, {
+  method: <span class="hl-string">'POST'</span>,
+  headers: {
+    <span class="hl-string">'Content-Type'</span>: <span class="hl-string">'application/json'</span>,
+    <span class="hl-string">'X-API-Key'</span>: <span class="hl-string">'YOUR_API_KEY'</span>
+  },
+  body: JSON.stringify({
+    <span class="hl-key">accession_number</span>: <span class="hl-string">'ACC20260909001'</span>,
+    <span class="hl-key">patient_id</span>: <span class="hl-string">'042790'</span>,
+    <span class="hl-key">patient_name</span>: <span class="hl-string">'JOHN DOE'</span>,
+    <span class="hl-key">birth_date</span>: <span class="hl-string">'1990-01-01'</span>,
+    <span class="hl-key">gender</span>: <span class="hl-string">'M'</span>,
+    <span class="hl-key">modality</span>: <span class="hl-string">'OT'</span>,
+    <span class="hl-key">procedure_desc</span>: <span class="hl-string">'FOTO THORAX'</span>,
+    <span class="hl-key">image_b64</span>: <span class="hl-string">'data:image/jpeg;base64,/9j/4AAQSkZJRg...'</span>
+  })
+})
+.then(<span class="hl-var">r</span> => <span class="hl-var">r</span>.json())
+.then(<span class="hl-var">data</span> => console.log(<span class="hl-var">data</span>));</code></pre>
+                    </div>
+
+                    <!-- Tab PHP -->
+                    <div id="code-create-study-php" class="tab-content-create-study hidden">
+                        <pre><code>&lt;?php
+<span class="hl-var">$ch</span> = curl_init(<span class="hl-string">'http://{{ request.get_host }}/api/study/create'</span>);
+<span class="hl-var">$payload</span> = json_encode([
+    <span class="hl-string">'accession_number'</span> => <span class="hl-string">'ACC20260909001'</span>,
+    <span class="hl-string">'patient_id'</span> => <span class="hl-string">'042790'</span>,
+    <span class="hl-string">'patient_name'</span> => <span class="hl-string">'JOHN DOE'</span>,
+    <span class="hl-string">'modality'</span> => <span class="hl-string">'OT'</span>,
+    <span class="hl-string">'procedure_desc'</span> => <span class="hl-string">'FOTO THORAX'</span>,
+    <span class="hl-string">'image_b64'</span> => <span class="hl-string">'data:image/jpeg;base64,/9j/4AAQSkZJRg...'</span>
+]);
+
+curl_setopt(<span class="hl-var">$ch</span>, CURLOPT_RETURNTRANSFER, <span class="hl-number">true</span>);
+curl_setopt(<span class="hl-var">$ch</span>, CURLOPT_POST, <span class="hl-number">true</span>);
+curl_setopt(<span class="hl-var">$ch</span>, CURLOPT_POSTFIELDS, <span class="hl-var">$payload</span>);
+curl_setopt(<span class="hl-var">$ch</span>, CURLOPT_HTTPHEADER, [
+    <span class="hl-string">'Content-Type: application/json'</span>,
+    <span class="hl-string">'X-API-Key: YOUR_API_KEY'</span>
+]);
+
+<span class="hl-var">$response</span> = curl_exec(<span class="hl-var">$ch</span>);
+curl_close(<span class="hl-var">$ch</span>);
+echo <span class="hl-var">$response</span>;</code></pre>
+                    </div>
+
+                    <!-- Copy Button -->
+                    <button onclick="copyCurrentCode('create-study')"
+                        class="absolute top-4 right-4 p-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-850 hover:border-slate-700 shadow-md transition-all active:scale-95"
+                        title="Copy code snippet">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Simulation & Response Window -->
+                <div class="bg-slate-950 border-t border-slate-800 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex gap-2">
+                            <button onclick="switchResp('create-study', 'success')" id="btn-resp-create-study-success"
+                                class="resp-btn-create-study text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded border border-emerald-500/20 shadow-sm transition-all">Response Success (Overwritten)</button>
+                            <button onclick="switchResp('create-study', 'error')" id="btn-resp-create-study-error"
+                                class="resp-btn-create-study text-[10px] font-black text-slate-400 hover:text-rose-400 hover:bg-rose-500/5 px-2.5 py-1 rounded transition-all">Response Error</button>
+                        </div>
+                        <button onclick="runSimulator('create-study')"
+                            class="btn-simulate px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-[10px] font-black tracking-widest shadow-lg shadow-purple-500/20 active:scale-95 transition-all flex items-center gap-1.5 uppercase">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z">
+                                </path>
+                            </svg>
+                            Try It Out
+                        </button>
+                    </div>
+
+                    <!-- Output Container -->
+                    <div
+                        class="relative bg-slate-900 border border-slate-850 rounded-xl p-4 min-h-[140px] console-scroll overflow-auto text-xs font-mono">
+                        <!-- Loading Simulator Overlay -->
+                        <div id="loader-create-study"
+                            class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm items-center justify-center hidden flex-col gap-2">
+                            <div
+                                class="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin">
+                            </div>
+                            <span
+                                class="text-[9px] text-slate-400 font-sans tracking-wider uppercase font-black">Mengecek duplikasi & mengirim ke Orthanc PACS...</span>
+                        </div>
+
+                        <!-- Content Success -->
+                        <div id="resp-create-study-success" class="resp-content-create-study block">
+                            <span
+                                class="text-[10px] font-black text-green-500 font-sans bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20 uppercase tracking-widest mb-3 inline-block">200 OK (Overwritten)</span>
+                            <pre class="text-slate-300"><code>{
+  <span class="hl-key">"success"</span>: <span class="hl-number">true</span>,
+  <span class="hl-key">"message"</span>: <span class="hl-string">"Study DICOM untuk Accession Number 'ACC20260909001' berhasil dibuat di Orthanc PACS (study lama ditimpa)."</span>,
+  <span class="hl-key">"overwritten"</span>: <span class="hl-number">true</span>,
+  <span class="hl-key">"accession_number"</span>: <span class="hl-string">"ACC20260909001"</span>,
+  <span class="hl-key">"patient_id"</span>: <span class="hl-string">"042790"</span>,
+  <span class="hl-key">"patient_name"</span>: <span class="hl-string">"JOHN^DOE"</span>,
+  <span class="hl-key">"orthanc_instance_id"</span>: <span class="hl-string">"98e404be-ca71a629-9e8020d2-b062bbda-ea4f58bc"</span>,
+  <span class="hl-key">"orthanc_study_id"</span>: <span class="hl-string">"384eb182-fe091395-927fe199-528574fc-be7b11d9"</span>,
+  <span class="hl-key">"study_instance_uid"</span>: <span class="hl-string">"2.16.840.1.113669.632.20.1211.10000353112"</span>
+}</code></pre>
+                        </div>
+
+                        <!-- Content Error -->
+                        <div id="resp-create-study-error" class="resp-content-create-study hidden">
+                            <span
+                                class="text-[10px] font-black text-rose-500 font-sans bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 uppercase tracking-widest mb-3 inline-block">400 Bad Request</span>
+                            <pre class="text-rose-400/90"><code>{
+  <span class="hl-key">"success"</span>: <span class="hl-number">false</span>,
+  <span class="hl-key">"message"</span>: <span class="hl-string">"Field accession_number wajib diisi."</span>
 }</code></pre>
                         </div>
                     </div>
