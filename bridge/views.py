@@ -3078,6 +3078,11 @@ def create_study_orthanc_api(request):
             study_date = data.get('study_date')
             study_time = data.get('study_time')
             study_instance_uid = data.get('study_instance_uid')
+            study_id = data.get('study_id') or data.get('StudyID')
+            requesting_physician = data.get('requesting_physician') or data.get('RequestingPhysician')
+            referring_physician = data.get('referring_physician') or data.get('referring_physician_name') or data.get('ReferringPhysicianName')
+            institution_name = data.get('institution_name') or data.get('InstitutionName')
+            other_patient_ids = data.get('other_patient_ids') or data.get('patient_other_ids') or data.get('other_patient_id') or data.get('OtherPatientIDs')
 
             # Ekstrak data citra berformat base64
             img_raw = data.get('image_b64') or data.get('image') or data.get('file') or data.get('content') or data.get('image_base64')
@@ -3104,6 +3109,11 @@ def create_study_orthanc_api(request):
             study_date = request.POST.get('study_date')
             study_time = request.POST.get('study_time')
             study_instance_uid = request.POST.get('study_instance_uid')
+            study_id = request.POST.get('study_id') or request.POST.get('StudyID')
+            requesting_physician = request.POST.get('requesting_physician') or request.POST.get('RequestingPhysician')
+            referring_physician = request.POST.get('referring_physician') or request.POST.get('referring_physician_name') or request.POST.get('ReferringPhysicianName')
+            institution_name = request.POST.get('institution_name') or request.POST.get('InstitutionName')
+            other_patient_ids = request.POST.get('other_patient_ids') or request.POST.get('patient_other_ids') or request.POST.get('other_patient_id') or request.POST.get('OtherPatientIDs')
 
             uploaded_file = request.FILES.get('image') or request.FILES.get('file')
             if uploaded_file:
@@ -3247,6 +3257,16 @@ def create_study_orthanc_api(request):
                 sop_class_uid = '1.2.840.10008.5.1.4.1.1.7'      # Secondary Capture Image Storage
 
         dicom_tags["SOPClassUID"] = sop_class_uid
+        if study_id:
+            dicom_tags["StudyID"] = str(study_id).strip()
+        if requesting_physician:
+            dicom_tags["RequestingPhysician"] = str(requesting_physician).strip().replace(' ', '^')
+        if referring_physician:
+            dicom_tags["ReferringPhysicianName"] = str(referring_physician).strip().replace(' ', '^')
+        if institution_name:
+            dicom_tags["InstitutionName"] = str(institution_name).strip()
+        if other_patient_ids:
+            dicom_tags["OtherPatientIDs"] = str(other_patient_ids).strip()
 
         orthanc_payload = {
             "Tags": dicom_tags,

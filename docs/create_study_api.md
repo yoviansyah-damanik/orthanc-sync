@@ -31,6 +31,11 @@ Semua request (sukses, validasi gagal, maupun error otentikasi) otomatis tercata
 | `gender` | String | Tidak | `M` / `F` / `O` (default: `O`) |
 | `study_date` | String | Tidak | Format `YYYYMMDD` (default: hari ini) |
 | `study_time` | String | Tidak | Format `HHMMSS` (default: waktu saat ini) |
+| `study_id` | String | Tidak | Study ID (Tag `(0020,0010)`) |
+| `requesting_physician` | String | Tidak | Dokter pemeriksa / peminta (Tag `(0032,1032)`) |
+| `referring_physician` | String | Tidak | Dokter perujuk (Tag `(0008,0090)`) |
+| `institution_name` | String | Tidak | Nama rumah sakit / institusi (Tag `(0008,0080)`) |
+| `other_patient_ids` | String | Tidak | NIK / ID lain pasien (Tag `(0010,1000)`) |
 
 > [!IMPORTANT]
 > **Penting untuk Transfer DICOM (C-STORE ke Router / PACS seperti DCMROUTER):**
