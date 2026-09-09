@@ -130,7 +130,13 @@
                                     {% if log.method == 'PUT' %}bg-amber-50 text-amber-600{% else %}bg-blue-50 text-blue-600{% endif %}">
                                     {{ log.method|default:"POST" }}
                                 </span>
-                                <span class="text-[11px] font-mono text-gray-400">/api/worklist</span>
+                                {% if 'create_study' in log.raw_payload or '/api/study/create' in log.raw_payload %}
+                                <span class="text-[11px] font-mono font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200/50">/api/study/create</span>
+                                {% elif 'Modality: DOC' in log.raw_payload or 'StoredAt:' in log.raw_payload or 'ACSN: DOC' in log.raw_payload %}
+                                <span class="text-[11px] font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/50">/api/modality-doc/upload</span>
+                                {% else %}
+                                <span class="text-[11px] font-mono text-gray-500 bg-slate-50 px-2 py-0.5 rounded">/api/worklist</span>
+                                {% endif %}
                             </div>
                         </td>
                         <td class="px-8 py-5">

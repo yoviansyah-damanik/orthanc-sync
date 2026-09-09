@@ -43,12 +43,36 @@ def get_doc_storage_dir():
     os.makedirs(path, exist_ok=True)
     return path
 
+def extract_api_key(request):
+    """Ekstrak API Key dari X-API-Key header, Authorization Bearer, query parameter, atau POST field."""
+    key = request.headers.get('X-API-Key') or request.META.get('HTTP_X_API_KEY')
+    if not key:
+        auth_header = request.headers.get('Authorization') or request.META.get('HTTP_AUTHORIZATION', '')
+        if auth_header.startswith('Bearer '):
+            key = auth_header[7:].strip()
+        elif auth_header:
+            key = auth_header.strip()
+    if not key:
+        key = request.GET.get('api_key') or request.GET.get('key')
+    if not key and hasattr(request, 'POST'):
+        key = request.POST.get('api_key') or request.POST.get('key')
+    return key
+
 # Decorator untuk validasi API Key pada endpoint eksternal
 def api_key_required(f):
     @wraps(f)
     def decorated_function(request, *args, **kwargs):
-        api_key_header = request.headers.get('X-API-Key') or request.META.get('HTTP_X_API_KEY')
+        api_key_header = extract_api_key(request)
         if not api_key_header:
+            if request.path.startswith('/api/'):
+                WorklistLog.objects.create(
+                    accession_number='AUTH-REQUIRED',
+                    patient_name='ANONYMOUS',
+                    method=request.method,
+                    status="Gagal",
+                    raw_payload=f"Path: {request.path}, Endpoint: /api/study/create" if "create" in request.path else f"Path: {request.path}",
+                    error_message="API Key is missing"
+                )
             return JsonResponse({"success": False, "message": "API Key is missing"}, status=401)
         
         try:
@@ -57,6 +81,15 @@ def api_key_required(f):
             key_obj.save()
             request.api_key = key_obj # Simpan di request untuk digunakan di view
         except APIKey.DoesNotExist:
+            if request.path.startswith('/api/'):
+                WorklistLog.objects.create(
+                    accession_number='AUTH-INVALID',
+                    patient_name='UNAUTHORIZED',
+                    method=request.method,
+                    status="Gagal",
+                    raw_payload=f"Path: {request.path}, Endpoint: /api/study/create" if "create" in request.path else f"Path: {request.path}",
+                    error_message="Invalid or inactive API Key"
+                )
             return JsonResponse({"success": False, "message": "Invalid or inactive API Key"}, status=403)
             
         return f(request, *args, **kwargs)
@@ -71,8 +104,17 @@ def api_key_or_login_required(f):
             return f(request, *args, **kwargs)
             
         # 2. Cek API Key jika belum login
-        api_key_header = request.headers.get('X-API-Key') or request.META.get('HTTP_X_API_KEY')
+        api_key_header = extract_api_key(request)
         if not api_key_header:
+            if request.path.startswith('/api/'):
+                WorklistLog.objects.create(
+                    accession_number='AUTH-REQUIRED',
+                    patient_name='ANONYMOUS',
+                    method=request.method,
+                    status="Gagal",
+                    raw_payload=f"Path: {request.path}, Endpoint: /api/study/create" if "create" in request.path else f"Path: {request.path}",
+                    error_message="Authentication required (Login or API Key missing)"
+                )
             return JsonResponse({"success": False, "message": "Authentication required (Login or API Key)"}, status=401)
         
         try:
@@ -81,6 +123,15 @@ def api_key_or_login_required(f):
             key_obj.save()
             request.api_key = key_obj
         except APIKey.DoesNotExist:
+            if request.path.startswith('/api/'):
+                WorklistLog.objects.create(
+                    accession_number='AUTH-INVALID',
+                    patient_name='UNAUTHORIZED',
+                    method=request.method,
+                    status="Gagal",
+                    raw_payload=f"Path: {request.path}, Endpoint: /api/study/create" if "create" in request.path else f"Path: {request.path}",
+                    error_message="Invalid or inactive API Key"
+                )
             return JsonResponse({"success": False, "message": "Invalid or inactive API Key"}, status=403)
             
         return f(request, *args, **kwargs)
@@ -1118,6 +1169,9 @@ def check_db_health(request):
         "engine": engine,
         "host": settings.get('HOST', 'localhost'),
         "port": settings.get('PORT', ''),
+        "name": settings.get('NAME', ''),
+        "worklist_log_count": WorklistLog.objects.count(),
+        "last_log": str(WorklistLog.objects.first()),
         "is_ready": False,
         "can_connect": False,
         "tables_exist": False,
@@ -1136,8 +1190,9 @@ def check_db_health(request):
             if cursor.fetchone():
                 status["tables_exist"] = True
                 status["is_ready"] = True
-    except:
+    except Exception as e:
         status["can_connect"] = False
+        status["error"] = str(e)
 
     return JsonResponse(status)
     
@@ -3017,6 +3072,7 @@ def create_study_orthanc_api(request):
             birth_date = str(data.get('birth_date', '')).strip()
             gender = str(data.get('gender', 'O')).strip()
             modality = str(data.get('modality', 'OT')).strip()
+            sop_class_uid = data.get('sop_class_uid') or data.get('SOPClassUID')
             procedure_desc = data.get('procedure_desc') or data.get('study_description', '')
             series_desc = data.get('series_description', 'Imported Image Series')
             study_date = data.get('study_date')
@@ -3024,7 +3080,7 @@ def create_study_orthanc_api(request):
             study_instance_uid = data.get('study_instance_uid')
 
             # Ekstrak data citra berformat base64
-            img_raw = data.get('image_b64') or data.get('image') or data.get('file') or data.get('content')
+            img_raw = data.get('image_b64') or data.get('image') or data.get('file') or data.get('content') or data.get('image_base64')
             if img_raw and isinstance(img_raw, str):
                 img_raw = img_raw.strip()
                 if img_raw.startswith('data:'):
@@ -3042,6 +3098,7 @@ def create_study_orthanc_api(request):
             birth_date = str(request.POST.get('birth_date', '')).strip()
             gender = str(request.POST.get('gender', 'O')).strip()
             modality = str(request.POST.get('modality', 'OT')).strip()
+            sop_class_uid = request.POST.get('sop_class_uid') or request.POST.get('SOPClassUID')
             procedure_desc = request.POST.get('procedure_desc') or request.POST.get('study_description', '')
             series_desc = request.POST.get('series_description', 'Imported Image Series')
             study_date = request.POST.get('study_date')
@@ -3071,13 +3128,49 @@ def create_study_orthanc_api(request):
 
         # Validasi parameter wajib
         if not accession_number:
-            return JsonResponse({'success': False, 'message': 'Field accession_number wajib diisi.'}, status=400)
+            error_msg = 'Field accession_number wajib diisi.'
+            WorklistLog.objects.create(
+                accession_number='UNKNOWN',
+                patient_name=patient_name or 'UNKNOWN',
+                method=request.method,
+                status="Gagal",
+                raw_payload="Action: create_study_orthanc, Error: Field accession_number wajib diisi",
+                error_message=error_msg
+            )
+            return JsonResponse({'success': False, 'message': error_msg}, status=400)
         if not patient_id:
-            return JsonResponse({'success': False, 'message': 'Field patient_id wajib diisi.'}, status=400)
+            error_msg = 'Field patient_id wajib diisi.'
+            WorklistLog.objects.create(
+                accession_number=accession_number,
+                patient_name=patient_name or 'UNKNOWN',
+                method=request.method,
+                status="Gagal",
+                raw_payload="Action: create_study_orthanc, Error: Field patient_id wajib diisi",
+                error_message=error_msg
+            )
+            return JsonResponse({'success': False, 'message': error_msg}, status=400)
         if not patient_name:
-            return JsonResponse({'success': False, 'message': 'Field patient_name wajib diisi.'}, status=400)
+            error_msg = 'Field patient_name wajib diisi.'
+            WorklistLog.objects.create(
+                accession_number=accession_number,
+                patient_name='UNKNOWN',
+                method=request.method,
+                status="Gagal",
+                raw_payload="Action: create_study_orthanc, Error: Field patient_name wajib diisi",
+                error_message=error_msg
+            )
+            return JsonResponse({'success': False, 'message': error_msg}, status=400)
         if not data_uri:
-            return JsonResponse({'success': False, 'message': 'Berkas citra wajib disertakan (image_b64 di JSON atau upload file di multipart).'}, status=400)
+            error_msg = 'Berkas citra wajib disertakan (image_b64 di JSON atau upload file di multipart).'
+            WorklistLog.objects.create(
+                accession_number=accession_number,
+                patient_name=patient_name,
+                method=request.method,
+                status="Gagal",
+                raw_payload="Action: create_study_orthanc, Error: Berkas citra tidak disertakan",
+                error_message=error_msg
+            )
+            return JsonResponse({'success': False, 'message': error_msg}, status=400)
 
         # Kredensial Orthanc
         orthanc_url = SystemConfig.get_val('ORTHANC_URL', 'http://localhost:8042').rstrip('/')
@@ -3131,8 +3224,29 @@ def create_study_orthanc_api(request):
             "SeriesDate": study_date_clean,
             "SeriesTime": study_time_clean,
         }
-        if study_instance_uid:
-            dicom_tags["StudyInstanceUID"] = study_instance_uid
+        # Penentuan SOPClassUID (Wajib ada agar C-STORE ke PACS/Router tujuan seperti DCMROUTER tidak error 2014)
+        if not sop_class_uid:
+            mod_upper = (modality or 'OT').upper()
+            if (data_uri and data_uri.startswith('data:application/pdf')) or mod_upper == 'DOC':
+                sop_class_uid = '1.2.840.10008.5.1.4.1.1.104.1'  # Encapsulated PDF Storage
+            elif mod_upper == 'CR':
+                sop_class_uid = '1.2.840.10008.5.1.4.1.1.1'      # CR Image Storage
+            elif mod_upper == 'DX':
+                sop_class_uid = '1.2.840.10008.5.1.4.1.1.1.1'    # DX Image Storage - For Presentation
+            elif mod_upper == 'CT':
+                sop_class_uid = '1.2.840.10008.5.1.4.1.1.2'      # CT Image Storage
+            elif mod_upper == 'MR':
+                sop_class_uid = '1.2.840.10008.5.1.4.1.1.4'      # MR Image Storage
+            elif mod_upper == 'US':
+                sop_class_uid = '1.2.840.10008.5.1.4.1.1.6.1'    # US Image Storage
+            elif mod_upper == 'NM':
+                sop_class_uid = '1.2.840.10008.5.1.4.1.1.20'     # NM Image Storage
+            elif mod_upper == 'XA':
+                sop_class_uid = '1.2.840.10008.5.1.4.1.1.12.1'   # XA Image Storage
+            else:
+                sop_class_uid = '1.2.840.10008.5.1.4.1.1.7'      # Secondary Capture Image Storage
+
+        dicom_tags["SOPClassUID"] = sop_class_uid
 
         orthanc_payload = {
             "Tags": dicom_tags,
@@ -3160,14 +3274,14 @@ def create_study_orthanc_api(request):
         instance_id = created_data.get('ID')
 
         # Dapatkan ID Study dan StudyInstanceUID dari instance baru
-        parent_study_id = None
+        parent_study_id = created_data.get('ParentStudy')
         actual_study_uid = study_instance_uid
         if instance_id:
             try:
                 inst_res = requests.get(f"{orthanc_url}/instances/{instance_id}", auth=auth, timeout=10)
                 if inst_res.status_code == 200:
                     inst_info = inst_res.json()
-                    parent_study_id = inst_info.get('ParentStudy')
+                    parent_study_id = parent_study_id or inst_info.get('ParentStudy')
                     actual_study_uid = inst_info.get('MainDicomTags', {}).get('StudyInstanceUID', actual_study_uid)
             except Exception as inst_err:
                 print(f"Peringatan saat mengambil detail instance {instance_id}: {inst_err}")
@@ -3178,7 +3292,7 @@ def create_study_orthanc_api(request):
             patient_name=formatted_patient_name,
             method=request.method,
             status="Berhasil",
-            raw_payload=f"Action: create_study_orthanc, Overwritten: {overwritten}, InstanceID: {instance_id}, StudyID: {parent_study_id}",
+            raw_payload=f"Action: create_study_orthanc, Overwritten: {overwritten}, Modality: {modality or 'OT'}, SOPClass: {sop_class_uid}, InstanceID: {instance_id}, StudyID: {parent_study_id}",
             error_message=None
         )
 
@@ -3188,17 +3302,37 @@ def create_study_orthanc_api(request):
             f"Study DICOM untuk Accession Number '{accession_number}' berhasil dibuat di Orthanc PACS."
         )
 
-        return JsonResponse({
+        res_payload = {
             'success': True,
             'message': message,
             'overwritten': overwritten,
             'accession_number': accession_number,
             'patient_id': patient_id,
             'patient_name': formatted_patient_name,
+            'modality': modality or 'OT',
+            'sop_class_uid': sop_class_uid,
             'orthanc_instance_id': instance_id,
             'orthanc_study_id': parent_study_id,
             'study_instance_uid': actual_study_uid
-        }, status=200)
+        }
+
+        # Ingatkan client jika modality tidak spesifik agar mencegah kegagalan C-STORE di router/PACS tujuan
+        if not modality or modality.upper() in ['OT', '']:
+            res_payload['note'] = (
+                "Peringatan Kelengkapan Data: Field 'modality' tidak diisi secara spesifik (default: OT). "
+                "Untuk menjamin kelancaran transfer DICOM (C-STORE) ke modalitas/PACS tujuan (seperti DCMROUTER), "
+                "pastikan client mengirimkan field 'modality' yang sesuai (contoh: CR, DX, CT, MR, US)."
+            )
+
+        return JsonResponse(res_payload, status=200)
 
     except Exception as e:
+        WorklistLog.objects.create(
+            accession_number=locals().get('accession_number') or 'UNKNOWN',
+            patient_name=locals().get('formatted_patient_name') or locals().get('patient_name') or 'UNKNOWN',
+            method=request.method,
+            status="Gagal",
+            raw_payload="Action: create_study_orthanc, Exception during processing",
+            error_message=f"Terjadi kesalahan internal: {str(e)}"
+        )
         return JsonResponse({'success': False, 'message': f"Terjadi kesalahan internal: {str(e)}"}, status=500)
